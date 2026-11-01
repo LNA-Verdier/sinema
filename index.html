@@ -20,24 +20,30 @@
 <div class="app">
   <header>
     <div class="brand"><span>S</span>inema</div>
-    <div class="tabs" role="tablist" id="tabs" hidden>
-      <button class="tab" id="tab-swipe" role="tab" aria-selected="true">Swiper</button>
-      <button class="tab" id="tab-matches" role="tab" aria-selected="false">Nos films <span class="count" id="mcount">0</span></button>
-    </div>
+    <button class="roombtn" id="menuBtn" type="button" hidden aria-haspopup="dialog">
+      <span class="roomname" id="roomName"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
   </header>
+
+  <div class="seg tabs" id="tabs" role="tablist" hidden>
+    <button type="button" role="tab" id="tab-swipe" data-view="swipe" aria-selected="true">Swiper</button>
+    <button type="button" role="tab" id="tab-matches" data-view="matches" aria-selected="false">Nos films <span class="count" id="mcount">0</span></button>
+    <button type="button" role="tab" id="tab-mine" data-view="mine" aria-selected="false">Mes choix</button>
+  </div>
 
   <div class="notice" id="notice" hidden></div>
 
   <!-- Connexion / création de compte -->
   <section id="view-auth" class="onboard" hidden>
     <h1>Choisissez votre film<br>sans débat</h1>
-    <p class="lead">Chacun swipe de son côté. Quand vous avez tous les deux envie du même film, il rejoint votre liste.</p>
+    <p class="lead">Chacun swipe de son côté. Quand tout le monde a envie du même film, il rejoint votre liste commune.</p>
     <form id="authForm" class="sheet" novalidate>
-      <div class="seg" role="tablist">
+      <div class="seg" role="tablist" id="authSeg">
         <button type="button" role="tab" id="modeSignup" aria-selected="true">Créer un compte</button>
         <button type="button" role="tab" id="modeLogin" aria-selected="false">Se connecter</button>
       </div>
-      <div id="signupOnly">
+      <div id="signupOnly" class="stack">
         <label for="authName">Ton pseudo</label>
         <input id="authName" maxlength="24" placeholder="Ton pseudo" autocomplete="nickname">
       </div>
@@ -58,7 +64,7 @@
     </div>
   </section>
 
-  <!-- Nouveau mot de passe (après le lien « mot de passe oublié ») -->
+  <!-- Nouveau mot de passe -->
   <section id="view-reset" class="onboard" hidden>
     <form id="resetForm" class="sheet">
       <h3>Nouveau mot de passe</h3>
@@ -68,38 +74,34 @@
     </form>
   </section>
 
-  <!-- Accueil : pseudo + créer / rejoindre un salon -->
+  <!-- Premier salon / invitation -->
   <section id="view-onboard" class="onboard" hidden>
-    <h1>Choisissez votre film<br>sans débat</h1>
-    <p class="lead">Chacun swipe de son côté. Quand vous avez tous les deux envie du même film, il rejoint votre liste.</p>
-    <form id="onboardForm" class="sheet">
-      <label for="nameInput">Ton pseudo</label>
-      <input id="nameInput" maxlength="24" placeholder="Ton pseudo" autocomplete="nickname" required>
-      <div id="joinBlock" hidden>
-        <p class="hint-text">Tu as été invité dans le salon <b id="joinCodeLabel"></b>.</p>
-        <button class="cta" type="submit" id="joinBtn">Rejoindre le salon</button>
-      </div>
-      <div id="createBlock">
-        <button class="cta" type="submit" id="createBtn">Créer notre salon</button>
-        <details class="join-code">
-          <summary>J'ai déjà un code</summary>
-          <div class="row-inline">
-            <input id="codeInput" maxlength="8" placeholder="ABCD2345" autocapitalize="characters" autocomplete="off">
-            <button class="ghost" type="button" id="joinCodeBtn">Rejoindre</button>
-          </div>
-        </details>
-      </div>
-    </form>
+    <h1 id="onboardTitle">Crée ton premier salon</h1>
+    <p class="lead" id="onboardLead">Un salon réunit les personnes avec qui tu veux choisir des films : ton couple, ta coloc, tes amis. Tu peux en avoir plusieurs.</p>
+    <div class="sheet" id="joinInvite" hidden>
+      <p>Tu es invité dans le salon <b id="joinCodeLabel"></b>.</p>
+      <button class="cta" type="button" id="joinInviteBtn">Rejoindre le salon</button>
+      <p class="fine">Tes choix (envies, bof, déjà vu) sont partagés avec les membres de tes salons pour trouver vos films en commun.</p>
+    </div>
+    <div class="sheet" id="firstRoom">
+      <label for="newRoomName">Nom du salon</label>
+      <input id="newRoomName" maxlength="40" placeholder="Ex. : Soirées canapé">
+      <button class="cta" type="button" id="firstCreateBtn">Créer le salon</button>
+      <details class="join-code">
+        <summary>J'ai un code d'invitation</summary>
+        <div class="row-inline">
+          <input id="codeInput" maxlength="8" placeholder="ABCD2345" autocapitalize="characters" autocomplete="off">
+          <button class="ghost" type="button" id="joinCodeBtn">Rejoindre</button>
+        </div>
+      </details>
+    </div>
   </section>
 
   <!-- Swipe -->
   <section id="view-swipe" class="swipe" hidden>
     <div class="status">
       <div class="people" id="people"></div>
-      <div class="filters">
-        <select id="genre" aria-label="Filtrer par genre"><option value="">Tous les genres</option></select>
-        <button class="ghost small" id="shareBtn" type="button">Salon</button>
-      </div>
+      <button class="ghost small" id="filtersBtn" type="button">Filtres <span class="count" id="fcount" hidden></span></button>
     </div>
     <div class="stage" id="stage"></div>
     <div class="actions">
@@ -112,11 +114,22 @@
     <div class="kbd">← Bof · ↑ Déjà vu · → Envie · ↓ Plus tard</div>
   </section>
 
-  <!-- Liste commune -->
+  <!-- Liste commune du salon -->
   <section id="view-matches" class="list" hidden>
     <div class="lhead"><h2>À voir ensemble</h2>
       <label><input type="checkbox" id="hideSeen"> Masquer les films vus</label></div>
     <div id="mlist" class="mlist"></div>
+  </section>
+
+  <!-- Mes choix (tous salons confondus) -->
+  <section id="view-mine" class="list" hidden>
+    <div class="lhead"><h2>Mes choix</h2><span class="fine">Valables dans tous tes salons</span></div>
+    <div class="seg" role="tablist" id="mineSeg">
+      <button type="button" role="tab" data-v="like" aria-selected="true">Envies <span class="n" id="n-like">0</span></button>
+      <button type="button" role="tab" data-v="nope" aria-selected="false">Bof <span class="n" id="n-nope">0</span></button>
+      <button type="button" role="tab" data-v="seen" aria-selected="false">Déjà vus <span class="n" id="n-seen">0</span></button>
+    </div>
+    <div id="minelist" class="mlist"></div>
   </section>
 
   <footer class="tmdb">
@@ -125,17 +138,109 @@
   </footer>
 </div>
 
-<div class="overlay" id="shareSheet" hidden>
-  <div class="sheet">
-    <h3>Invite ta moitié</h3>
-    <p>Envoie-lui ce lien. Elle crée son compte et arrive directement dans votre salon.</p>
-    <div class="code" id="shareCode"></div>
-    <input id="shareLink" readonly>
+<!-- Menu : salons et compte -->
+<div class="overlay" id="menuSheet" hidden>
+  <div class="sheet drawer" role="dialog" aria-labelledby="menuTitle">
+    <div class="sheethead"><h3 id="menuTitle">Mes salons</h3><button class="iconbtn" type="button" data-close aria-label="Fermer">✕</button></div>
+    <div id="roomList" class="roomlist"></div>
     <div class="row-inline">
-      <button class="cta" type="button" id="copyLink">Copier le lien</button>
-      <button class="ghost" type="button" id="closeShare">Fermer</button>
+      <button class="ghost grow" type="button" id="newRoomBtn">Nouveau salon</button>
+      <button class="ghost grow" type="button" id="joinRoomBtn">Rejoindre avec un code</button>
     </div>
-    <p class="account">Connecté en tant que <b id="accountEmail"></b>. <button class="linkbtn" type="button" id="logoutBtn">Se déconnecter</button></p>
+    <div class="inlineform" id="newRoomForm" hidden>
+      <input id="menuRoomName" maxlength="40" placeholder="Nom du salon">
+      <button class="cta" type="button" id="menuCreateBtn">Créer</button>
+    </div>
+    <div class="inlineform" id="joinRoomForm" hidden>
+      <input id="menuCode" maxlength="8" placeholder="ABCD2345" autocapitalize="characters" autocomplete="off">
+      <button class="cta" type="button" id="menuJoinBtn">Rejoindre</button>
+    </div>
+
+    <div class="section" id="currentRoom">
+      <h4>Salon actuel</h4>
+      <div class="inlineform">
+        <input id="renameInput" maxlength="40" placeholder="Nom du salon" aria-label="Nom du salon">
+        <button class="ghost" type="button" id="renameBtn">Renommer</button>
+      </div>
+      <p class="fine">Invite d'autres personnes avec ce code ou ce lien (12 personnes maximum).</p>
+      <div class="code" id="shareCode"></div>
+      <div class="inlineform">
+        <input id="shareLink" readonly aria-label="Lien d'invitation">
+        <button class="cta" type="button" id="copyLink">Copier</button>
+      </div>
+      <button class="linkbtn danger" type="button" id="leaveBtn">Quitter ce salon</button>
+      <div class="confirm" id="leaveConfirm" hidden>
+        <span>Quitter ce salon ? Tes choix restent dans ton compte.</span>
+        <button class="ghost small" type="button" id="leaveYes">Quitter</button>
+        <button class="ghost small" type="button" id="leaveNo">Annuler</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h4>Mon compte</h4>
+      <div class="inlineform">
+        <input id="pseudoInput" maxlength="24" placeholder="Ton pseudo" aria-label="Ton pseudo">
+        <button class="ghost" type="button" id="pseudoBtn">Changer</button>
+      </div>
+      <p class="fine">Connecté avec <b id="accountEmail"></b></p>
+      <button class="ghost" type="button" id="logoutBtn">Se déconnecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div class="overlay" id="filtersSheet" hidden>
+  <div class="sheet drawer" role="dialog" aria-labelledby="filtersTitle">
+    <div class="sheethead"><h3 id="filtersTitle">Filtres</h3><button class="iconbtn" type="button" data-close aria-label="Fermer">✕</button></div>
+    <label>Quels films proposer ?</label>
+    <div class="seg" role="tablist" id="modeSeg">
+      <button type="button" role="tab" data-v="top" aria-selected="true">Populaires</button>
+      <button type="button" role="tab" data-v="mix" aria-selected="false">Mélange</button>
+      <button type="button" role="tab" data-v="gems" aria-selected="false">Pépites</button>
+    </div>
+    <p class="fine" id="modeHelp"></p>
+    <label for="fGenre">Genre</label>
+    <select id="fGenre"><option value="">Tous les genres</option></select>
+    <label for="fPeriod">Année de sortie</label>
+    <select id="fPeriod">
+      <option value="">Toutes les années</option>
+      <option value="2020-">Depuis 2020</option>
+      <option value="2010-2019">Années 2010</option>
+      <option value="2000-2009">Années 2000</option>
+      <option value="1990-1999">Années 1990</option>
+      <option value="1980-1989">Années 1980</option>
+      <option value="1960-1979">1960 à 1979</option>
+      <option value="-1959">Avant 1960</option>
+    </select>
+    <label>Note minimale</label>
+    <div class="seg" role="tablist" id="rateSeg">
+      <button type="button" role="tab" data-v="" aria-selected="true">Toutes</button>
+      <button type="button" role="tab" data-v="6" aria-selected="false">★ 6+</button>
+      <button type="button" role="tab" data-v="7" aria-selected="false">★ 7+</button>
+      <button type="button" role="tab" data-v="8" aria-selected="false">★ 8+</button>
+    </div>
+    <label for="fCountry">Pays de production</label>
+    <select id="fCountry">
+      <option value="">Tous les pays</option>
+      <option value="FR">France</option>
+      <option value="GB">Royaume-Uni</option>
+      <option value="US">États-Unis</option>
+      <option value="BE">Belgique</option>
+      <option value="IT">Italie</option>
+      <option value="ES">Espagne</option>
+      <option value="DE">Allemagne</option>
+      <option value="JP">Japon</option>
+      <option value="KR">Corée du Sud</option>
+      <option value="IN">Inde</option>
+      <option value="CA">Canada</option>
+      <option value="DK">Danemark</option>
+      <option value="SE">Suède</option>
+      <option value="MX">Mexique</option>
+    </select>
+    <div class="row-inline">
+      <button class="ghost grow" type="button" id="resetFilters">Réinitialiser</button>
+      <button class="cta grow" type="button" id="applyFilters">Appliquer</button>
+    </div>
   </div>
 </div>
 
