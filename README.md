@@ -12,7 +12,10 @@ Choisir un film sans débat : chacun swipe de son côté, et quand tout le salon
 - Salons de 3 personnes ou plus : « match » quand tout le monde a envie, et « x/n envies » dès que 2 personnes ont envie
 - Onglet « Mes choix » pour revoir et modifier ses envies, bofs et déjà vus
 - Filtres : mode Populaires / Mélange / Pépites, genre, période, note minimale, pays de production, réalisateur ou acteur (avec suggestions)
-- Réalisation et casting affichés sur chaque carte
+- Films et séries (bascule en haut de l'écran de swipe, filtres mémorisés séparément)
+- Disponibilité : au cinéma en ce moment, en streaming sur abonnement, en VOD
+- Réalisation et casting affichés sur chaque carte, avec un lien « Où le voir » et un lien vers la fiche TMDB
+- Recherche et filtre Films / Séries dans « Mes choix »
 - Profil : pseudo, avatar personnalisable (10 personnages, 10 couleurs, accessoires), changement d'e-mail (lien de confirmation) et de mot de passe (code envoyé par e-mail)
 
 ## Stack

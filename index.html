@@ -100,9 +100,13 @@
   <!-- Swipe -->
   <section id="view-swipe" class="swipe" hidden>
     <div class="status">
-      <div class="people" id="people"></div>
+      <div class="seg typeseg" role="tablist" id="typeSeg" aria-label="Type de titres">
+        <button type="button" role="tab" data-v="movie" aria-selected="true">Films</button>
+        <button type="button" role="tab" data-v="tv" aria-selected="false">Séries</button>
+      </div>
       <button class="ghost small" id="filtersBtn" type="button">Filtres <span class="count" id="fcount" hidden></span></button>
     </div>
+    <div class="people" id="people"></div>
     <div class="stage" id="stage"></div>
     <div class="actions">
       <button class="btn small" id="undo" title="Annuler le dernier swipe (Retour arrière)" aria-label="Annuler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
@@ -128,6 +132,14 @@
       <button type="button" role="tab" data-v="like" aria-selected="true">Envies <span class="n" id="n-like">0</span></button>
       <button type="button" role="tab" data-v="nope" aria-selected="false">Bof <span class="n" id="n-nope">0</span></button>
       <button type="button" role="tab" data-v="seen" aria-selected="false">Déjà vus <span class="n" id="n-seen">0</span></button>
+    </div>
+    <div class="listtools">
+      <input id="mineSearch" type="search" placeholder="Rechercher un titre, un genre, une année…" aria-label="Rechercher dans mes choix">
+      <div class="seg" role="tablist" id="mineTypeSeg" aria-label="Type">
+        <button type="button" role="tab" data-v="" aria-selected="true">Tout</button>
+        <button type="button" role="tab" data-v="movie" aria-selected="false">Films</button>
+        <button type="button" role="tab" data-v="tv" aria-selected="false">Séries</button>
+      </div>
     </div>
     <div id="minelist" class="mlist"></div>
   </section>
@@ -242,7 +254,14 @@
     <p class="fine" id="modeHelp"></p>
     <label for="fGenre">Genre</label>
     <select id="fGenre"><option value="">Tous les genres</option></select>
-    <label for="fPeriod">Année de sortie</label>
+    <label for="fAvail">Disponibilité</label>
+    <select id="fAvail">
+      <option value="">Peu importe</option>
+      <option value="cinema" id="availCinema">Au cinéma en ce moment</option>
+      <option value="flatrate">En streaming sur abonnement</option>
+      <option value="vod">En VOD (location ou achat)</option>
+    </select>
+    <label for="fPeriod" id="periodLabel">Année de sortie</label>
     <select id="fPeriod">
       <option value="">Toutes les années</option>
       <option value="2020-">Depuis 2020</option>
@@ -260,7 +279,7 @@
       <button type="button" role="tab" data-v="7" aria-selected="false">★ 7+</button>
       <button type="button" role="tab" data-v="8" aria-selected="false">★ 8+</button>
     </div>
-    <label for="fPerson">Réalisateur, acteur ou actrice</label>
+    <label for="fPerson" id="personLabelText">Réalisateur, acteur ou actrice</label>
     <div class="personpick">
       <div class="chosen" id="personChosen" hidden><span id="personLabel"></span><button class="iconbtn" type="button" id="personClear" aria-label="Retirer ce filtre">✕</button></div>
       <input id="fPerson" placeholder="Ex. : Agnès Varda, Omar Sy…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="personList">

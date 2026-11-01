@@ -58,26 +58,38 @@ async function tmdb(path, params = {}){
   if (!r.ok) throw new Error(`TMDB a répondu ${r.status}`);
   return r.json();
 }
-let GENRE_NAMES = {};
+// Les séries sont rangées avec un identifiant négatif : les numéros TMDB des films et des séries se chevauchent.
+const isTv = id => id < 0;
+const tmdbPath = id => `${isTv(id) ? "tv" : "movie"}/${Math.abs(id)}`;
+const tmdbPage = id => `https://www.themoviedb.org/${tmdbPath(id)}`;
+const GENRES = { movie:{}, tv:{} };
 const details = new Map();
 function getDetails(id){
-  if (!details.has(id)) details.set(id, tmdb(`/movie/${id}`, { append_to_response: "watch/providers,credits" }).then(d => ({
-    runtime: d.runtime,
-    directors: (d.credits?.crew || []).filter(c => c.job === "Director").map(c => c.name).slice(0,2),
+  if (!details.has(id)) details.set(id, tmdb(`/${tmdbPath(id)}`, { append_to_response: "watch/providers,credits" }).then(d => ({
+    runtime: isTv(id) ? (d.episode_run_time || [])[0] : d.runtime,
+    seasons: d.number_of_seasons,
+    directorLabel: isTv(id) ? "Créée par" : "De",
+    directors: isTv(id) ? (d.created_by || []).map(c => c.name).slice(0,2) : (d.credits?.crew || []).filter(c => c.job === "Director").map(c => c.name).slice(0,2),
     cast: (d.credits?.cast || []).slice(0,4).map(c => c.name),
     providers: ((d["watch/providers"]?.results?.FR?.flatrate) || []).slice(0,5).map(p=>({ name:p.provider_name, logo:p.logo_path })),
-    link: d["watch/providers"]?.results?.FR?.link || `https://www.themoviedb.org/movie/${id}`,
+    watchLink: d["watch/providers"]?.results?.FR?.link || null,
   })).catch(() => null));
   return details.get(id);
 }
-const snapshot = m => ({ id:m.id, title:m.title, year:m.year, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
-function normalize(m){
-  return { id:m.id, title:m.title, year:(m.release_date||"").slice(0,4), poster:m.poster_path, overview:m.overview,
-    genres:(m.genre_ids||[]).map(g=>GENRE_NAMES[g]).filter(Boolean).slice(0,3), vote:m.vote_average };
+const snapshot = m => ({ id:m.id, type:m.type, title:m.title, year:m.year, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
+function normalize(m, type){
+  const tv = type === "tv";
+  return { id: tv ? -m.id : m.id, type, title: tv ? m.name : m.title, year:((tv ? m.first_air_date : m.release_date)||"").slice(0,4),
+    poster:m.poster_path, overview:m.overview, genres:(m.genre_ids||[]).map(g=>GENRES[type][g]).filter(Boolean).slice(0,3), vote:m.vote_average };
 }
+const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
 
 // ================== État ==================
-const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", country:"", person:null };
+const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", country:"", person:null, avail:"" };
+function loadFilters(){
+  let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
+  return { movie:{ ...DEFAULT_FILTERS, ...(all.movie||{}) }, tv:{ ...DEFAULT_FILTERS, ...(all.tv||{}) } };
+}
 const S = {
   me:null, email:"", name:"", avatar:null,
   avatars:{},             // user_id -> avatar (salon courant)
@@ -87,7 +99,11 @@ const S = {
   mine:new Map(),         // movie_id -> { verdict, movie }  (mes choix, tous salons)
   theirs:new Map(),       // user_id -> Map(movie_id -> { verdict, movie })  (autres membres du salon)
   watched:new Set(),
-  filters:{ ...DEFAULT_FILTERS, ...JSON.parse(LS.get("sinema-filters") || "{}") },
+  type: LS.get("sinema-type") === "tv" ? "tv" : "movie",
+  filtersBy: loadFilters(),
+  get filters(){ return this.filtersBy[this.type]; },
+  set filters(v){ this.filtersBy[this.type] = v; },
+  mineType:"", mineQuery:"",
   queue:[], pageOrder:null, pageIdx:0, totalPages:1, loading:false,
   history:[], busy:false, channel:null, view:"swipe", mineTab:"like",
 };
@@ -99,7 +115,8 @@ async function boot(){
     showNotice("Configuration incomplète : renseigne SUPABASE_URL, SUPABASE_ANON_KEY et TMDB_TOKEN dans config.js.");
     return;
   }
-  ["tabs","authSeg","mineSeg","modeSeg","rateSeg"].forEach(id => segInit($(id), b => onSeg(id, b)));
+  ["tabs","authSeg","mineSeg","modeSeg","rateSeg","typeSeg","mineTypeSeg"].forEach(id => segInit($(id), b => onSeg(id, b)));
+  segSelectBy($("typeSeg"), b => b.dataset.v === S.type);
   const url = new URL(location.href);
   const h = location.hash.slice(1);
   const invite = (url.searchParams.get("salon") || (/^[A-Za-z0-9]{6,8}$/.test(h) ? h : "")).toUpperCase();
@@ -119,6 +136,8 @@ function onSeg(id, btn){
   else if (id === "authSeg") setAuthMode(btn.id === "modeLogin" ? "login" : "signup");
   else if (id === "mineSeg"){ S.mineTab = btn.dataset.v; renderMine(); }
   else if (id === "modeSeg") modeHelp();
+  else if (id === "typeSeg") switchType(btn.dataset.v);
+  else if (id === "mineTypeSeg"){ S.mineType = btn.dataset.v; renderMine(); }
 }
 
 async function afterLogin(session){
@@ -127,10 +146,9 @@ async function afterLogin(session){
   S.email = session.user.email || "";
   S.name = session.user.user_metadata?.name || LS.get("cad-name") || (S.email.split("@")[0]);
   S.avatar = cleanAvatar(session.user.user_metadata?.avatar || avatarFor(S.me));
-  const [g] = await Promise.all([ tmdb("/genre/movie/list"), loadMine(), loadRooms() ]);
-  GENRE_NAMES = Object.fromEntries(g.genres.map(x=>[x.id,x.name]));
-  const sel = $("fGenre"); sel.length = 1;
-  g.genres.forEach(x => { const o=document.createElement("option"); o.value=x.id; o.textContent=x.name; sel.appendChild(o); });
+  const [gm, gt] = await Promise.all([ tmdb("/genre/movie/list"), tmdb("/genre/tv/list"), loadMine(), loadRooms() ]);
+  GENRES.movie = Object.fromEntries(gm.genres.map(x=>[x.id,x.name]));
+  GENRES.tv = Object.fromEntries(gt.genres.map(x=>[x.id,x.name]));
   subscribeMine();
 
   const invite = LS.get("cad-invite");
@@ -392,14 +410,17 @@ function matchList(){
 // ================== Filtres et pile de films ==================
 function filterOk(m){
   const f = S.filters;
-  if (f.genre && !(m.genres||[]).includes(GENRE_NAMES[f.genre])) return false;
+  if (typeOf(m) !== S.type) return false;
+  if (f.genre && !(m.genres||[]).includes(GENRES[S.type][f.genre])) return false;
+  if (f.avail) return false; // la disponibilité n'est pas connue dans l'instantané : seuls les titres trouvés par TMDB passent
   if (f.period){ const [a,b] = f.period.split("-"); const y = +m.year; if (!y || (a && y < +a) || (b && y > +b)) return false; }
   if (f.rating && (m.vote||0) < +f.rating) return false;
   if (f.person) return false; // le casting n'est pas connu dans l'instantané : seuls les films trouvés par TMDB passent
   return true; // le pays n'est pas connu dans l'instantané : on n'exclut pas
 }
+const isoDay = d => d.toISOString().slice(0,10);
 function discoverParams(page){
-  const f = S.filters;
+  const f = S.filters, tv = S.type === "tv";
   const p = { include_adult:"false", page:String(page) };
   if (f.mode === "gems"){ p.sort_by = "vote_average.desc"; p["vote_count.gte"] = "60"; p["vote_count.lte"] = "1500"; p["vote_average.gte"] = f.rating || "6.8"; }
   else if (f.mode === "mix"){ p.sort_by = "popularity.desc"; p["vote_count.gte"] = "80"; }
@@ -407,11 +428,23 @@ function discoverParams(page){
   if (f.rating && f.mode !== "gems") p["vote_average.gte"] = f.rating;
   if (f.genre) p.with_genres = f.genre;
   if (f.country) p.with_origin_country = f.country;
-  if (f.person) p.with_people = String(f.person.id);
+  if (f.person && !tv) p.with_people = String(f.person.id);
+  const dateKey = tv ? "first_air_date" : "primary_release_date";
   if (f.period){
     const [a,b] = f.period.split("-");
-    if (a) p["primary_release_date.gte"] = `${a}-01-01`;
-    if (b) p["primary_release_date.lte"] = `${b}-12-31`;
+    if (a) p[`${dateKey}.gte`] = `${a}-01-01`;
+    if (b) p[`${dateKey}.lte`] = `${b}-12-31`;
+  }
+  if (f.avail === "cinema" && !tv){
+    // sorties en salle en France ces 6 dernières semaines : peu de votes encore, on lève le seuil
+    const now = new Date(), from = new Date(now - 42*864e5);
+    p.region = "FR"; p.with_release_type = "3|2";
+    p["release_date.gte"] = isoDay(from); p["release_date.lte"] = isoDay(now);
+    p["vote_count.gte"] = "0"; delete p["vote_count.lte"];
+    if (f.mode !== "gems") p.sort_by = "popularity.desc";
+  } else if (f.avail){
+    p.watch_region = "FR";
+    p.with_watch_monetization_types = f.avail === "vod" ? "rent|buy" : "flatrate";
   }
   return p;
 }
@@ -435,13 +468,22 @@ async function refill(reset = false){
       let page;
       if (S.filters.mode === "mix" && S.pageOrder){ if (S.pageIdx >= S.pageOrder.length) break; page = S.pageOrder[S.pageIdx++]; }
       else { if (S.pageIdx >= Math.min(S.totalPages, 500)) break; page = ++S.pageIdx; }
-      const d = await tmdb("/discover/movie", discoverParams(page));
+      if (S.type === "tv" && S.filters.person){
+        // la recherche de séries par personne passe par sa filmographie (TMDB ne la propose pas en découverte)
+        if (S.pageIdx++ > 0) break;
+        const c = await tmdb(`/person/${S.filters.person.id}/tv_credits`);
+        const seen = new Set(), inQueue = new Set(S.queue.map(q=>q.id));
+        const all = [...(c.cast||[]), ...(c.crew||[])].filter(x => !seen.has(x.id) && seen.add(x.id)).sort((a,b) => (b.popularity||0)-(a.popularity||0));
+        S.queue.push(...all.map(x => normalize(x, "tv")).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
+        break;
+      }
+      const d = await tmdb(`/discover/${S.type}`, discoverParams(page));
       S.totalPages = d.total_pages || 1;
       if (S.filters.mode === "mix" && !S.pageOrder){
         S.pageOrder = shuffle(Array.from({ length: Math.min(S.totalPages, 300) - 1 }, (_, i) => i + 2)); S.pageIdx = 0;
       }
       const inQueue = new Set(S.queue.map(q=>q.id));
-      let batch = d.results.map(normalize).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id));
+      let batch = d.results.map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id));
       if (S.filters.mode === "mix") batch = shuffle(batch);
       S.queue.push(...batch);
     }
@@ -469,7 +511,7 @@ function cardEl(m, cls){
   else el.querySelector(".noposter").textContent = m.title;
   (m.genres||[]).forEach(g => { const s=document.createElement("span"); s.textContent=g; el.querySelector(".genres").appendChild(s); });
   el.querySelector("h2").textContent = m.title;
-  el.querySelector(".year").textContent = m.year || "";
+  el.querySelector(".year").textContent = [typeOf(m) === "tv" ? "Série" : "", m.year].filter(Boolean).join(" · ");
   el.querySelector(".rating").textContent = m.vote ? `★ ${m.vote.toFixed(1)}` : "";
   el.querySelector(".overview").textContent = m.overview || "Pas de résumé en français.";
   const fans = othersWith(m.id, "like");
@@ -487,18 +529,18 @@ function setupMore(el){
 async function fillDetails(el, m){
   const d = await getDetails(m.id);
   if (!d || !el.isConnected) return;
-  el.querySelector(".dur").textContent = fmtMins(d.runtime);
+  el.querySelector(".dur").textContent = [d.seasons ? `${d.seasons} saison${d.seasons>1?"s":""}` : "", d.runtime ? (isTv(m.id) ? `épisodes de ${d.runtime} min` : fmtMins(d.runtime)) : ""].filter(Boolean).join(" · ");
   const cr = el.querySelector(".credits"); cr.textContent = "";
   const addPart = (label, names) => { if (!names.length) return; if (cr.childNodes.length) cr.append(" · "); cr.append(label + " "); const b=document.createElement("b"); b.textContent = names.join(", "); cr.append(b); };
-  addPart("De", d.directors); addPart("Avec", d.cast);
+  addPart(d.directorLabel, d.directors); addPart("Avec", d.cast);
   const more = el.querySelector(".more"), ov = el.querySelector(".overview");
   requestAnimationFrame(() => { more.hidden = ov.scrollHeight <= ov.clientHeight + 2 && cr.scrollWidth <= cr.clientWidth + 2; });
   const pv = el.querySelector(".providers"); pv.innerHTML = "";
   if (d.providers.length) d.providers.forEach(p => { const i=document.createElement("img"); i.src=IMG(p.logo,"w92"); i.alt=p.name; i.title=p.name; pv.appendChild(i); });
   else { const s=document.createElement("span"); s.className="none"; s.textContent="Pas en streaming par abonnement en France"; pv.appendChild(s); }
-  const a = document.createElement("a"); a.className="tmdblink"; a.href=d.link; a.target="_blank"; a.rel="noopener"; a.textContent="Où le voir ↗";
-  a.addEventListener("pointerdown", e => e.stopPropagation());
-  pv.appendChild(a);
+  const link = (href, text) => { const a = document.createElement("a"); a.className="tmdblink"; a.href=href; a.target="_blank"; a.rel="noopener"; a.textContent=text; a.addEventListener("pointerdown", e => e.stopPropagation()); pv.appendChild(a); };
+  if (d.watchLink) link(d.watchLink, "Où le voir ↗");   // toutes les offres en France (location, achat, abonnement)
+  link(tmdbPage(m.id), "Fiche TMDB ↗");                 // fiche complète : casting, bandes-annonces, avis
 }
 
 function renderStage(){
@@ -508,7 +550,7 @@ function renderStage(){
     const e=document.createElement("div"); e.className="empty";
     e.innerHTML = `<strong></strong><span></span>`;
     e.querySelector("strong").textContent = S.loading ? "Chargement…" : "Pile terminée";
-    e.querySelector("span").textContent = S.loading ? "On cherche des films pour vous." : "Plus de films pour ces filtres. Élargis-les ou passe en mode Mélange.";
+    e.querySelector("span").textContent = S.loading ? "On cherche des titres pour vous." : "Plus rien pour ces filtres. Élargis-les ou passe en mode Mélange.";
     st.appendChild(e);
   }
   top3.slice().reverse().forEach((m, ri) => {
@@ -540,8 +582,10 @@ function rowEl(m, id){
   const row = document.createElement("div"); row.className = "row";
   row.innerHTML = `${m.poster ? `<img alt="">` : `<div class="mini"></div>`}<div class="info"><div class="t"></div><div class="m"></div><div class="pv"></div></div><div class="side"></div>`;
   if (m.poster){ const i=row.querySelector("img"); i.src=IMG(m.poster,"w185"); i.alt="Affiche : "+(m.title||""); i.loading="lazy"; }
-  row.querySelector(".t").appendChild(document.createTextNode(m.title || `Film ${id}`));
-  row.querySelector(".m").textContent = [m.year, (m.genres||[]).join(", ")].filter(Boolean).join(" · ");
+  const a = document.createElement("a"); a.href = tmdbPage(id); a.target = "_blank"; a.rel = "noopener"; a.className = "titlelink";
+  a.textContent = m.title || `Titre ${Math.abs(id)}`; a.title = "Voir la fiche sur TMDB";
+  row.querySelector(".t").appendChild(a);
+  row.querySelector(".m").textContent = [isTv(id) ? "Série" : "", m.year, (m.genres||[]).join(", ")].filter(Boolean).join(" · ");
   return row;
 }
 
@@ -580,10 +624,16 @@ function renderMine(){
   for (const e of S.mine.values()) counts[e.verdict]++;
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
   const list = $("minelist"); list.innerHTML = "";
-  const items = [...S.mine.entries()].filter(([,e]) => e.verdict === S.mineTab).sort((a,b) => (b[1].at||"").localeCompare(a[1].at||""));
+  const q = S.mineQuery.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const items = [...S.mine.entries()]
+    .filter(([id, e]) => e.verdict === S.mineTab)
+    .filter(([id]) => !S.mineType || (S.mineType === "tv") === isTv(id))
+    .filter(([, e]) => !q || ((e.movie?.title||"") + " " + (e.movie?.genres||[]).join(" ") + " " + (e.movie?.year||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q))
+    .sort((a,b) => (b[1].at||"").localeCompare(a[1].at||""));
   if (!items.length){
     const e=document.createElement("div"); e.className="lempty";
-    e.textContent = { like:"Aucune envie pour l'instant.", nope:"Aucun film écarté.", seen:"Aucun film marqué déjà vu." }[S.mineTab];
+    e.textContent = (q || S.mineType) ? "Aucun titre ne correspond à ta recherche."
+      : { like:"Aucune envie pour l'instant.", nope:"Aucun titre écarté.", seen:"Aucun titre marqué déjà vu." }[S.mineTab];
     list.appendChild(e); return;
   }
   items.forEach(([id, e]) => {
@@ -624,8 +674,18 @@ function renderMenu(){
   $("leaveConfirm").hidden = true;
 }
 
+function fillGenreSelect(){
+  const sel = $("fGenre"); sel.length = 1;
+  Object.entries(GENRES[S.type]).forEach(([id, name]) => { const o=document.createElement("option"); o.value=id; o.textContent=name; sel.appendChild(o); });
+}
 function renderFilters(){
-  const f = S.filters;
+  const f = S.filters, tv = S.type === "tv";
+  $("filtersTitle").textContent = tv ? "Filtres séries" : "Filtres films";
+  fillGenreSelect();
+  $("periodLabel").textContent = tv ? "Première diffusion" : "Année de sortie";
+  $("personLabelText").textContent = tv ? "Créateur, acteur ou actrice" : "Réalisateur, acteur ou actrice";
+  $("availCinema").disabled = tv; $("availCinema").hidden = tv;
+  $("fAvail").value = tv && f.avail === "cinema" ? "" : f.avail;
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
   $("fGenre").value = f.genre; $("fPeriod").value = f.period; $("fCountry").value = f.country;
@@ -633,11 +693,20 @@ function renderFilters(){
   modeHelp();
 }
 function modeHelp(){
-  $("modeHelp").textContent = { top:"Les films les plus populaires du moment, puis de moins en moins connus.",
-    mix:"Un tirage au hasard parmi des milliers de films, connus ou non.",
-    gems:"Des films très bien notés mais peu vus : de quoi faire des découvertes." }[segValue($("modeSeg"))];
+  const w = S.type === "tv" ? "séries" : "films";
+  $("modeHelp").textContent = { top:`Les ${w} les plus populaires du moment, puis de moins en moins connus.`,
+    mix:`Un tirage au hasard parmi des milliers de ${w}, connus ou non.`,
+    gems:`Des ${w} très bien notés mais peu vus : de quoi faire des découvertes.` }[segValue($("modeSeg"))];
 }
-function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","country","person"].filter(k => f[k]).length + (f.mode !== "top" ? 1 : 0); }
+function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","country","person","avail"].filter(k => f[k]).length + (f.mode !== "top" ? 1 : 0); }
+const saveFilters = () => LS.set("sinema-filters2", JSON.stringify(S.filtersBy));
+async function switchType(type){
+  if (type === S.type) return;
+  S.type = type; LS.set("sinema-type", type);
+  S.history = []; S.loading = false;
+  renderStage();
+  await refill(true).catch(reportError); renderAll();
+}
 
 function renderAll(){
   renderPeople(); renderStage(); renderMatches(); renderMine();
@@ -802,8 +871,8 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), country:$("fCountry").value, person:draftPerson };
-  LS.set("sinema-filters", JSON.stringify(S.filters));
+  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), country:$("fCountry").value, person:draftPerson, avail:$("fAvail").value };
+  saveFilters();
   closeSheets(); setView("swipe");
   S.loading = false; await refill(true).catch(reportError); renderAll();
 };
@@ -941,6 +1010,7 @@ $("pwBtn").onclick = async () => {
 $("like").onclick = () => act("like"); $("nope").onclick = () => act("nope"); $("vu").onclick = () => act("vu"); $("skip").onclick = () => act("skip");
 $("undo").onclick = undo;
 $("hideSeen").onchange = renderMatches;
+$("mineSearch").addEventListener("input", e => { S.mineQuery = e.target.value; renderMine(); });
 document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || $("view-swipe").hidden || !$("menuSheet").hidden || !$("filtersSheet").hidden) return;
   if (e.key === "ArrowRight") act("like");

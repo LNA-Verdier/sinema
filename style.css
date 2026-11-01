@@ -36,12 +36,18 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .seg{position:relative;contain:layout paint;display:flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:0;isolation:isolate}
 .seg .ind{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:9px;background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.18);
   transition:transform .26s var(--ease);will-change:transform;z-index:-1}
-.seg button{flex:1;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13.5px;padding:8px 6px;border-radius:9px;cursor:pointer;
+.seg button{flex:1 1 0;min-width:0;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13.5px;padding:8px 6px;border-radius:9px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;transition:color .25s}
 .seg button[aria-selected="true"]{color:var(--ink)}
 .seg.tabs{background:var(--surface)}
 .seg.tabs .ind{background:var(--ink);box-shadow:none}
 .seg.tabs button[aria-selected="true"]{color:var(--bg)}
+.typeseg{flex:0 0 auto;width:min(190px,50vw)}
+.listtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.listtools input{flex:1 1 180px;padding:8px 12px;font-size:15px}
+.listtools .seg{flex:0 0 auto;width:min(210px,100%)}
+.titlelink{color:inherit;text-decoration:none}
+.titlelink:hover{text-decoration:underline}
 .count{font-variant-numeric:tabular-nums;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 6px;font-size:11px;line-height:17px;font-weight:700}
 .seg .n{font-variant-numeric:tabular-nums;font-size:11.5px;opacity:.7}
 
