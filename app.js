@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011732";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011732";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011743";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011743";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -99,11 +99,12 @@ function normalize(m, type){
 const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
 
 // ================== État ==================
-const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", countries:[], person:null, avail:"home", strict:false };
+const DEFAULT_FILTERS = { mode:"top", genres:[], period:"", rating:"", countries:[], person:null, avail:"home", strict:false };
 function loadFilters(){
   let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
   const fix = f => { const x = { ...DEFAULT_FILTERS, ...(f||{}) }; if (!Array.isArray(x.countries)) x.countries = []; if (x.country){ x.countries = [x.country]; } delete x.country;
-    if (x.avail !== "cinema" && x.avail !== "soon") x.avail = "home"; x.strict = !!x.strict; return x; };
+    if (x.avail !== "cinema" && x.avail !== "soon") x.avail = "home";
+    if (!Array.isArray(x.genres)) x.genres = []; if (x.genre){ x.genres = [String(x.genre)]; } delete x.genre; x.strict = !!x.strict; return x; };
   const r = { movie:fix(all.movie), tv:fix(all.tv) }; r.tv.person = null; return r;
 }
 const S = {
@@ -451,7 +452,8 @@ function matchList(){
 function filterOk(m){
   const f = S.filters;
   if (typeOf(m) !== S.type) return false;
-  if (f.genre && !(m.genres||[]).includes(GENRES[S.type][f.genre])) return false;
+  // genres cumulatifs : il suffit d'en avoir un parmi ceux choisis
+  if (f.genres.length && !f.genres.some(g => (m.genres||[]).includes(GENRES[S.type][g]))) return false;
   if (f.avail === "cinema" || f.avail === "soon") return false; // seuls les titres trouvés par TMDB pour ce mode passent
   if (f.period){ const [a,b] = f.period.split("-"); const y = +m.year; if (!y || (a && y < +a) || (b && y > +b)) return false; }
   if (f.rating && (m.vote||0) < +f.rating) return false;
@@ -471,7 +473,7 @@ function discoverParams(page){
   else if (f.mode === "mix"){ p.sort_by = "popularity.desc"; p["vote_count.gte"] = "80"; }
   else { p.sort_by = "popularity.desc"; p["vote_count.gte"] = "300"; }
   if (f.rating && f.mode !== "gems") p["vote_average.gte"] = f.rating;
-  if (f.genre) p.with_genres = f.genre;
+  if (f.genres.length) p.with_genres = f.genres.join("|"); // « | » = l'un ou l'autre (OU), « , » serait ET
   if (f.countries?.length) p.with_origin_country = f.countries.join("|"); // « | » = l'un ou l'autre
   if (f.person && !tv) p.with_people = String(f.person.id);
   const dateKey = tv ? "first_air_date" : "primary_release_date";
@@ -784,14 +786,9 @@ function renderMenu(){
   $("leaveConfirm").hidden = true;
 }
 
-function fillGenreSelect(){
-  const sel = $("fGenre"); sel.length = 1;
-  Object.entries(GENRES[S.type]).forEach(([id, name]) => { const o=document.createElement("option"); o.value=id; o.textContent=name; sel.appendChild(o); });
-}
 function renderFilters(){
   const f = S.filters, tv = S.type === "tv";
   $("filtersTitle").textContent = tv ? "Filtres séries" : "Filtres films";
-  fillGenreSelect();
   $("periodLabel").textContent = tv ? "Première diffusion" : "Année de sortie";
   $("availCinema").hidden = tv;
   segSelectBy($("availSeg"), b => b.dataset.v === (tv && f.avail === "cinema" ? "home" : f.avail));
@@ -799,8 +796,8 @@ function renderFilters(){
   availHelp(); renderPlatforms();
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
-  $("fGenre").value = f.genre; setYears(f.period);
-  $("fCountries").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", (f.countries||[]).includes(b.dataset.v)));
+  draftGenres = [...f.genres]; draftCountries = [...f.countries]; setYears(f.period);
+  renderSummaries();
   $("personBlock").hidden = tv;
   draftPerson = f.person; renderPerson();
   modeHelp();
@@ -846,31 +843,79 @@ function availHelp(){
 }
 // ---------- Mes plateformes ----------
 let draftPlatforms = [], PROVIDERS = null;
-async function renderPlatforms(){
-  const box = $("fPlatforms");
-  if (!PROVIDERS){
-    box.innerHTML = `<span class="fine">Chargement…</span>`;
-    try{
-      const [a, b] = await Promise.all([ tmdb("/watch/providers/movie", { watch_region:"FR" }), tmdb("/watch/providers/tv", { watch_region:"FR" }) ]);
-      const all = new Map();
-      [...a.results, ...b.results].forEach(p => { if (!all.has(p.provider_id)) all.set(p.provider_id, p); });
-      PROVIDERS = [...all.values()].sort((x, y) => (x.display_priorities?.FR ?? x.display_priority ?? 99) - (y.display_priorities?.FR ?? y.display_priority ?? 99)).slice(0, 18);
-    }catch(err){ box.innerHTML = `<span class="fine">Impossible de charger les plateformes.</span>`; return; }
-  }
-  box.innerHTML = "";
-  PROVIDERS.forEach(p => {
-    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", draftPlatforms.includes(p.provider_id));
-    b.innerHTML = `<img alt="">`; b.querySelector("img").src = IMG(p.logo_path, "w92");
-    b.append(p.provider_name);
-    b.onclick = () => { const on = draftPlatforms.includes(p.provider_id);
-      draftPlatforms = on ? draftPlatforms.filter(x => x !== p.provider_id) : [...draftPlatforms, p.provider_id];
-      b.setAttribute("aria-pressed", !on); };
-    box.appendChild(b);
+async function loadProviders(){
+  if (PROVIDERS) return PROVIDERS;
+  const [a, b] = await Promise.all([ tmdb("/watch/providers/movie", { watch_region:"FR" }), tmdb("/watch/providers/tv", { watch_region:"FR" }) ]);
+  const all = new Map();
+  [...a.results, ...b.results].forEach(p => { if (!all.has(p.provider_id)) all.set(p.provider_id, p); });
+  PROVIDERS = [...all.values()].sort((x, y) => (x.display_priorities?.FR ?? x.display_priority ?? 99) - (y.display_priorities?.FR ?? y.display_priority ?? 99)).slice(0, 40);
+  return PROVIDERS;
+}
+async function renderPlatforms(){ renderSummaries(); if (!PROVIDERS) loadProviders().then(renderSummaries).catch(() => {}); }
+
+// ---------- Sélecteurs à choix multiples ----------
+const COUNTRIES = [["FR","France"],["US","États-Unis"],["GB","Royaume-Uni"],["BE","Belgique"],["CA","Canada"],["IT","Italie"],["ES","Espagne"],["DE","Allemagne"],
+  ["JP","Japon"],["KR","Corée du Sud"],["CN","Chine"],["HK","Hong Kong"],["TW","Taïwan"],["IN","Inde"],["IE","Irlande"],["DK","Danemark"],["SE","Suède"],["NO","Norvège"],
+  ["FI","Finlande"],["IS","Islande"],["NL","Pays-Bas"],["CH","Suisse"],["AT","Autriche"],["PL","Pologne"],["RO","Roumanie"],["GR","Grèce"],["TR","Turquie"],["IR","Iran"],
+  ["IL","Israël"],["MX","Mexique"],["AR","Argentine"],["BR","Brésil"],["CL","Chili"],["CO","Colombie"],["AU","Australie"],["NZ","Nouvelle-Zélande"],["ZA","Afrique du Sud"],
+  ["SN","Sénégal"],["MA","Maroc"],["TN","Tunisie"],["DZ","Algérie"],["EG","Égypte"],["LB","Liban"],["TH","Thaïlande"],["PH","Philippines"],["ID","Indonésie"]];
+let draftGenres = [], draftCountries = [];
+function summary(sel, names, none){
+  if (!sel.length) return { text:none, empty:true };
+  const n = sel.map(v => names.get(String(v))).filter(Boolean);
+  if (n.length < sel.length) return { text:`${sel.length} sélectionné${sel.length>1?"s":""}`, empty:false };
+  return { text: n.length <= 2 ? n.join(", ") : `${n.slice(0,2).join(", ")} +${n.length-2}`, empty:false };
+}
+function setSum(id, { text, empty }){ const el = $(id); el.textContent = text; el.classList.toggle("placeholder", empty); }
+function renderSummaries(){
+  setSum("genreSum", summary(draftGenres, new Map(Object.entries(GENRES[S.type])), "Tous les genres"));
+  setSum("countrySum", summary(draftCountries, new Map(COUNTRIES), "Tous les pays"));
+  setSum("platformSum", summary(draftPlatforms, new Map((PROVIDERS||[]).map(p => [String(p.provider_id), p.provider_name])), "Toutes les plateformes"));
+}
+let picker = null;
+function openPicker({ title, hint, items, selected, search, onDone }){
+  picker = { items, sel:new Set(selected.map(String)), onDone };
+  $("pickerTitle").textContent = title; $("pickerHint").textContent = hint || ""; $("pickerHint").hidden = !hint;
+  $("pickerSearch").value = ""; $("pickerSearch").hidden = !search;
+  drawPicker(); $("pickerSheet").hidden = false;
+  if (search && matchMedia("(hover:hover)").matches) $("pickerSearch").focus();
+}
+function drawPicker(){
+  const q = $("pickerSearch").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const list = $("pickerList"); list.innerHTML = "";
+  const rows = picker.items.filter(it => !q || it.label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
+  if (!rows.length){ list.innerHTML = `<p class="fine" style="padding:8px 6px">Aucun résultat.</p>`; return; }
+  rows.forEach(it => {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("role","option");
+    b.setAttribute("aria-selected", picker.sel.has(String(it.v)));
+    b.innerHTML = `<span class="box"></span>` + (it.img ? `<img alt="">` : "") + `<span></span>`;
+    if (it.img) b.querySelector("img").src = it.img;
+    b.lastChild.textContent = it.label;
+    b.onclick = () => { const k = String(it.v); picker.sel.has(k) ? picker.sel.delete(k) : picker.sel.add(k); b.setAttribute("aria-selected", picker.sel.has(k)); };
+    list.appendChild(b);
   });
 }
+$("pickerSearch").addEventListener("input", drawPicker);
+$("pickerClear").onclick = () => { picker.sel.clear(); drawPicker(); };
+$("pickerDone").onclick = () => { picker.onDone([...picker.sel]); $("pickerSheet").hidden = true; renderSummaries(); };
+$("pickerClose").onclick = () => { $("pickerSheet").hidden = true; };
+$("genreBtn").onclick = () => openPicker({
+  title:"Genres", hint:"Les titres d'au moins un des genres choisis sont proposés.",
+  items:Object.entries(GENRES[S.type]).map(([v, label]) => ({ v, label })), selected:draftGenres, search:false,
+  onDone: sel => { draftGenres = sel; } });
+$("countryBtn").onclick = () => openPicker({
+  title:"Pays de production", hint:"Les titres produits dans au moins un des pays choisis sont proposés.",
+  items:COUNTRIES.map(([v, label]) => ({ v, label })), selected:draftCountries, search:true,
+  onDone: sel => { draftCountries = sel; } });
+$("platformBtn").onclick = async () => {
+  try{ await loadProviders(); }catch{ return showNotice("Impossible de charger la liste des plateformes."); }
+  openPicker({ title:"Mes plateformes", hint:"Seuls les catalogues des plateformes choisies sont proposés quand l'option « tout de suite » est active.",
+    items:PROVIDERS.map(p => ({ v:p.provider_id, label:p.provider_name, img:IMG(p.logo_path, "w92") })), selected:draftPlatforms, search:true,
+    onDone: sel => { draftPlatforms = sel.map(Number); } });
+};
 $("fStrict").addEventListener("change", availHelp);
-function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","person","strict"].filter(k => f[k]).length + (f.avail !== "home" ? 1 : 0) + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
-$("fCountries").addEventListener("click", e => { const b = e.target.closest("button"); if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); });
+function activeFilterCount(){ const f=S.filters; return ["period","rating","person","strict"].filter(k => f[k]).length + (f.genres.length ? 1 : 0) + (f.avail !== "home" ? 1 : 0) + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
+
 const saveFilters = () => LS.set("sinema-filters2", JSON.stringify(S.filtersBy));
 async function switchType(type){
   if (type === S.type) return;
@@ -1010,9 +1055,12 @@ function celebrate(id, kind){
 function clearRoomInputs(){ ["codeInput","menuCode","newRoomName","menuRoomName"].forEach(id => $(id).value = ""); }
 function openMenu(){ clearRoomInputs(); renderMenu(); $("newRoomForm").hidden = true; $("joinRoomForm").hidden = true; $("menuSheet").hidden = false; }
 function openFilters(){ renderFilters(); $("filtersSheet").hidden = false; refreshSegs(); }
-function closeSheets(){ ["menuSheet","filtersSheet","profileSheet"].forEach(id => $(id).hidden = true); $("personList").hidden = true; }
+function closeSheets(){ ["menuSheet","filtersSheet","profileSheet","pickerSheet"].forEach(id => $(id).hidden = true); $("personList").hidden = true; }
 document.querySelectorAll(".overlay").forEach(o => {
-  o.addEventListener("click", e => { if (e.target === o || e.target.closest("[data-close]")) closeSheets(); });
+  o.addEventListener("click", e => {
+    if (o.id === "pickerSheet"){ if (e.target === o) o.hidden = true; return; }
+    if (e.target === o || e.target.closest("[data-close]")) closeSheets();
+  });
 });
 $("menuBtn").onclick = openMenu;
 $("filtersBtn").onclick = openFilters;
@@ -1046,7 +1094,7 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:getYears(), rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home", strict:$("fStrict").checked };
+  S.filters = { mode:segValue($("modeSeg")) || "top", genres:draftGenres, period:getYears(), rating:segValue($("rateSeg")), countries:draftCountries, person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home", strict:$("fStrict").checked };
   saveFilters();
   if (JSON.stringify(draftPlatforms) !== JSON.stringify(S.platforms)){
     S.platforms = draftPlatforms; LS.set("sinema-platforms", JSON.stringify(S.platforms));

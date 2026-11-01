@@ -78,6 +78,20 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .switch small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
 .chips.logos button{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px}
 .chips.logos img{width:22px;height:22px;border-radius:5px}
+.msel{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:15px;cursor:pointer;text-align:left}
+.msel .msum{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msel .msum.placeholder{color:var(--muted)}
+.msel .chev{font-size:20px;line-height:1;color:var(--muted)}
+.msel .badge{background:var(--accent);color:var(--accent-ink);border-radius:999px;font-size:11px;font-weight:700;padding:0 6px;line-height:17px;margin-left:6px}
+.overlay.picker{z-index:25}
+.plist{display:flex;flex-direction:column;gap:2px;max-height:52vh;overflow:auto;margin:0 -6px;padding:0 6px}
+.plist button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:var(--ink);padding:9px 6px;border-radius:8px;cursor:pointer;text-align:left;font-size:15px}
+.plist button:hover{background:var(--bg)}
+.plist .box{flex:none;width:20px;height:20px;border-radius:5px;border:2px solid var(--line);display:grid;place-items:center;transition:background .15s,border-color .15s}
+.plist button[aria-selected="true"] .box{background:var(--accent);border-color:var(--accent)}
+.plist button[aria-selected="true"] .box::after{content:"";width:10px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.plist img{width:26px;height:26px;border-radius:6px;flex:none}
+.plist .sep{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 6px 2px}
 .typeseg{flex:0 0 auto;width:min(190px,50vw)}
 .listtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .listtools input{flex:1 1 180px;padding:8px 12px;font-size:15px}

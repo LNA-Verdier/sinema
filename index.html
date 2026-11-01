@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=202611011732">
+<link rel="stylesheet" href="style.css?v=202611011743">
 </head>
 <body>
 <div class="app">
@@ -259,6 +259,20 @@
   </div>
 </div>
 
+<!-- Sélecteur à choix multiples (genres, pays, plateformes) -->
+<div class="overlay picker" id="pickerSheet" hidden>
+  <div class="sheet drawer" role="dialog" aria-labelledby="pickerTitle">
+    <div class="sheethead"><h3 id="pickerTitle"></h3><button class="iconbtn" type="button" id="pickerClose" aria-label="Fermer">✕</button></div>
+    <p class="fine" id="pickerHint"></p>
+    <input type="search" id="pickerSearch" placeholder="Rechercher…" aria-label="Rechercher dans la liste">
+    <div class="plist" id="pickerList" role="listbox" aria-multiselectable="true"></div>
+    <div class="row-inline">
+      <button class="ghost grow" type="button" id="pickerClear">Tout désélectionner</button>
+      <button class="cta grow" type="button" id="pickerDone">Valider</button>
+    </div>
+  </div>
+</div>
+
 <!-- Filtres -->
 <div class="overlay" id="filtersSheet" hidden>
   <div class="sheet drawer" role="dialog" aria-labelledby="filtersTitle">
@@ -270,8 +284,8 @@
       <button type="button" role="tab" data-v="gems" aria-selected="false">Pépites</button>
     </div>
     <p class="fine" id="modeHelp"></p>
-    <label for="fGenre">Genre</label>
-    <select id="fGenre"><option value="">Tous les genres</option></select>
+    <label for="genreBtn">Genres</label>
+    <button class="msel" type="button" id="genreBtn" aria-haspopup="dialog"><span class="msum" id="genreSum"></span><span class="chev" aria-hidden="true">›</span></button>
     <label>Où le regarder ?</label>
     <div class="seg" role="tablist" id="availSeg">
       <button type="button" role="tab" data-v="home" aria-selected="true">Chez moi</button>
@@ -283,8 +297,8 @@
       <label class="switch"><input type="checkbox" id="fStrict"><span class="sw" aria-hidden="true"></span>
         <span>Seulement ce que je peux regarder tout de suite<small>en streaming ou en VOD en France</small></span></label>
       <div id="platformBlock" class="stack">
-        <label>Mes plateformes <span class="fine">(facultatif : si tu en choisis, seuls leurs catalogues sont proposés)</span></label>
-        <div class="chips logos" id="fPlatforms"></div>
+        <label for="platformBtn">Mes plateformes <span class="fine">(facultatif)</span></label>
+        <button class="msel" type="button" id="platformBtn" aria-haspopup="dialog"><span class="msum" id="platformSum"></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
     </div>
     <div class="yearhead"><label id="periodLabel">Année de sortie</label><span class="yearval" id="yearVal"></span></div>
@@ -309,27 +323,8 @@
         <div class="suggest" id="personList" role="listbox" hidden></div>
       </div>
     </div>
-    <label>Pays de production <span class="fine" id="countryHint">(plusieurs choix possibles)</span></label>
-    <div class="chips" id="fCountries">
-      <button type="button" data-v="FR" aria-pressed="false">France</button>
-      <button type="button" data-v="GB" aria-pressed="false">Royaume-Uni</button>
-      <button type="button" data-v="US" aria-pressed="false">États-Unis</button>
-      <button type="button" data-v="BE" aria-pressed="false">Belgique</button>
-      <button type="button" data-v="IT" aria-pressed="false">Italie</button>
-      <button type="button" data-v="ES" aria-pressed="false">Espagne</button>
-      <button type="button" data-v="DE" aria-pressed="false">Allemagne</button>
-      <button type="button" data-v="JP" aria-pressed="false">Japon</button>
-      <button type="button" data-v="KR" aria-pressed="false">Corée du Sud</button>
-      <button type="button" data-v="IN" aria-pressed="false">Inde</button>
-      <button type="button" data-v="CA" aria-pressed="false">Canada</button>
-      <button type="button" data-v="DK" aria-pressed="false">Danemark</button>
-      <button type="button" data-v="SE" aria-pressed="false">Suède</button>
-      <button type="button" data-v="NO" aria-pressed="false">Norvège</button>
-      <button type="button" data-v="MX" aria-pressed="false">Mexique</button>
-      <button type="button" data-v="BR" aria-pressed="false">Brésil</button>
-      <button type="button" data-v="AU" aria-pressed="false">Australie</button>
-      <button type="button" data-v="IE" aria-pressed="false">Irlande</button>
-    </div>
+    <label for="countryBtn">Pays de production</label>
+    <button class="msel" type="button" id="countryBtn" aria-haspopup="dialog"><span class="msum" id="countrySum"></span><span class="chev" aria-hidden="true">›</span></button>
     <div class="row-inline">
       <button class="ghost grow" type="button" id="resetFilters">Réinitialiser</button>
       <button class="cta grow" type="button" id="applyFilters">Appliquer</button>
@@ -342,6 +337,6 @@
   <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
 </div></div>
 
-<script type="module" src="app.js?v=202611011732"></script>
+<script type="module" src="app.js?v=202611011743"></script>
 </body>
 </html>
