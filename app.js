@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011836";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011836";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011839";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011839";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -852,12 +852,24 @@ function renderMine(){
   const gcount = new Map(); tabPool.forEach(([, e]) => (e.movie?.genres||[]).forEach(g => gcount.set(g, (gcount.get(g)||0) + 1)));
   if (S.mineGenre && !gcount.has(S.mineGenre)) S.mineGenre = "";
   const gbox = $("mineGenres"); gbox.innerHTML = ""; gbox.hidden = gcount.size < 2;
-  [...gcount.entries()].sort((a,b) => b[1]-a[1]).forEach(([g, n]) => {
+  gbox.classList.toggle("open", !!S.mineGenresOpen);
+  const sorted = [...gcount.entries()].sort((a,b) => b[1]-a[1]);
+  sorted.forEach(([g, n], i) => {
     const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", S.mineGenre === g);
+    if (i >= 10 && S.mineGenre !== g) b.classList.add("extra");
     b.textContent = g; const c = document.createElement("span"); c.textContent = n; b.appendChild(c);
     b.onclick = () => { S.mineGenre = S.mineGenre === g ? "" : g; renderMine(); };
     gbox.appendChild(b);
   });
+  if (sorted.length > 10){
+    const m = document.createElement("button"); m.type = "button"; m.className = "moreg";
+    m.textContent = S.mineGenresOpen ? "Moins de genres" : `+ ${sorted.length - 10} genres`;
+    m.onclick = () => { S.mineGenresOpen = !S.mineGenresOpen; renderMine(); };
+    gbox.appendChild(m);
+  }
+  // fondu de droite retiré quand on arrive au bout du défilement (téléphone)
+  const edge = () => gbox.classList.toggle("end", gbox.scrollLeft + gbox.clientWidth >= gbox.scrollWidth - 4);
+  gbox.onscroll = edge; requestAnimationFrame(edge);
   const counts = { like:0, nope:0, seen:0 };
   pool.forEach(([, e]) => counts[e.verdict]++);
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
