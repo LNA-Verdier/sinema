@@ -1,10 +1,10 @@
 // Sinema · rooms.js — Salons : création, rejoindre, ouverture, temps réel, calcul des matchs et pastilles de nouveautés.
-import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011910";
-import { $, LS, S, reportError, sb, segMove, segSelectBy, showNotice } from "./core.js?v=202611011910";
-import { celebrate, filterOk, refill, renderStage, toast } from "./deck.js?v=202611011910";
-import { renderMatches } from "./lists.js?v=202611011910";
-import { clearRoomInputs, closeSheets, openMenu, renderMenu } from "./sheets.js?v=202611011910";
-import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011910";
+import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011916";
+import { $, LS, S, reportError, sb, segMove, segSelectBy, showNotice } from "./core.js?v=202611011916";
+import { celebrate, filterOk, refill, renderStage, toast } from "./deck.js?v=202611011916";
+import { renderMatches } from "./lists.js?v=202611011916";
+import { clearRoomInputs, closeSheets, openMenu, renderMenu } from "./sheets.js?v=202611011916";
+import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011916";
 
 async function loadMine(){
   const { data, error } = await sb.from("user_swipes").select("movie_id,verdict,movie,updated_at").eq("user_id", S.me);
@@ -86,7 +86,7 @@ async function findRoom(pred, fallback){
 
 async function openRoom(room, { justCreated=false, justJoined=false } = {}){
   if (!room) return onboard(null);
-  S.room = room; LS.set("cad-room", room.code);
+  S.room = room; LS.set("sinema-room", room.code);
   $("roomName").textContent = roomLabel(room);
   $("view-onboard").hidden = true; $("menuBtn").hidden = false; $("tabs").hidden = false;
   showNotice("");

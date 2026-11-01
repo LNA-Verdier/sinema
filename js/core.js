@@ -1,9 +1,11 @@
 // Sinema · core.js — Socle partagé : utilitaires, barres de choix, accès TMDB, genres, état de l'application (S) et client Supabase.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011910";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011916";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
 const LS = { get(k){ try{ return localStorage.getItem(k); }catch{ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch{} } };
+// anciennes clés « cad-… » (du temps de « Ciné à deux ») recopiées une fois sous « sinema-… »
+for (const k of ["room","invite","name"]){ const v = LS.get("cad-"+k); if (v !== null){ if (LS.get("sinema-"+k) === null) LS.set("sinema-"+k, v); try{ localStorage.removeItem("cad-"+k); }catch{} } }
 const IMG = (path, size="w500") => path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
 // Taille d'affiche TMDB suffisante pour la carte, selon sa largeur réelle en pixels (écrans haute densité compris)
 function posterSize(){

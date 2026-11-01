@@ -1,13 +1,13 @@
 // Sinema · main.js — Point d'entrée : démarrage, après connexion, changement d'onglet et de type, rendu global, raccourcis clavier.
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js?v=202611011910";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js?v=202611011916";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011910";
-import { $, GENRES, LS, OFFLINE_TEXT, S, isOffline, reportError, showOffline, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011910";
-import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011910";
-import { loadMine, loadRoom, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011910";
-import { act, flushOutbox, pendingRows, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011910";
-import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011910";
-import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011910";
+import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011916";
+import { $, GENRES, LS, OFFLINE_TEXT, S, isOffline, reportError, showOffline, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011916";
+import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011916";
+import { loadMine, loadRoom, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011916";
+import { act, flushOutbox, pendingRows, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011916";
+import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011916";
+import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011916";
 
 // ================== Démarrage ==================
 async function boot(){
@@ -20,7 +20,7 @@ async function boot(){
   const url = new URL(location.href);
   const h = location.hash.slice(1);
   const invite = (url.searchParams.get("salon") || (/^[A-Za-z0-9]{6,8}$/.test(h) ? h : "")).toUpperCase();
-  if (invite) LS.set("cad-invite", invite);
+  if (invite) LS.set("sinema-invite", invite);
   const isRecovery = /type=recovery/.test(location.hash);
 
   setSb(createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:"implicit" } }));
@@ -46,7 +46,7 @@ async function afterLogin(session){
   ["view-auth","view-reset"].forEach(v => $(v).hidden = true);
   S.me = session.user.id;
   S.email = session.user.email || "";
-  S.name = session.user.user_metadata?.name || LS.get("cad-name") || (S.email.split("@")[0]);
+  S.name = session.user.user_metadata?.name || LS.get("sinema-name") || (S.email.split("@")[0]);
   S.avatar = cleanAvatar(session.user.user_metadata?.avatar || avatarFor(S.me));
   if (Array.isArray(session.user.user_metadata?.platforms)) S.platforms = session.user.user_metadata.platforms.filter(Number.isInteger);
   await flushOutbox().catch(reportError); // choix faits hors connexion lors d'une visite précédente
@@ -56,14 +56,14 @@ async function afterLogin(session){
   GENRES.tv = Object.fromEntries(gt.genres.map(x=>[x.id,x.name]));
   subscribeMine();
 
-  const invite = LS.get("cad-invite");
+  const invite = LS.get("sinema-invite");
   if (invite){
-    LS.set("cad-invite","");
+    LS.set("sinema-invite","");
     const known = S.rooms.find(r => r.code === invite);
     if (known) return openRoom(known);
     return onboard(invite);
   }
-  const saved = S.rooms.find(r => r.code === LS.get("cad-room")) || S.rooms[0];
+  const saved = S.rooms.find(r => r.code === LS.get("sinema-room")) || S.rooms[0];
   if (saved) return openRoom(saved);
   onboard(null);
 }

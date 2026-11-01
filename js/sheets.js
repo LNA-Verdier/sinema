@@ -1,10 +1,10 @@
 // Sinema · sheets.js — Feuilles : menu des salons, filtres (années, plateformes, pays, genres, personne) et profil (avatar, e-mail, mot de passe).
-import { avatarSVG, BASES, COLORS as AV_COLORS, SLOTS, cleanAvatar } from "./avatars.js?v=202611011910";
-import { $, DEFAULT_FILTERS, HOME, IMG, LS, S, genreOptions, refreshSegs, reportError, sb, segSelectBy, segValue, showNotice, tmdb } from "./core.js?v=202611011910";
-import { PASS_OK, authMessage, logout } from "./auth.js?v=202611011910";
-import { loadRooms, newMatches, onboard, openRoom, roomLabel } from "./rooms.js?v=202611011910";
-import { refill, renderPeople } from "./deck.js?v=202611011910";
-import { renderAll, saveFilters, setView } from "./main.js?v=202611011910";
+import { avatarSVG, BASES, COLORS as AV_COLORS, SLOTS, cleanAvatar } from "./avatars.js?v=202611011916";
+import { $, DEFAULT_FILTERS, HOME, IMG, LS, S, genreOptions, refreshSegs, reportError, sb, segSelectBy, segValue, showNotice, tmdb } from "./core.js?v=202611011916";
+import { PASS_OK, authMessage, logout } from "./auth.js?v=202611011916";
+import { loadRooms, newMatches, onboard, openRoom, roomLabel } from "./rooms.js?v=202611011916";
+import { refill, renderPeople } from "./deck.js?v=202611011916";
+import { renderAll, saveFilters, setView } from "./main.js?v=202611011916";
 
 function renderMenu(){
   const list = $("roomList"); list.innerHTML = "";
@@ -204,7 +204,7 @@ $("leaveYes").onclick = async () => {
   const { error } = await sb.rpc("leave_room", { p_room: S.room.id });
   if (error) return reportError(error);
   if (S.channel){ sb.removeChannel(S.channel); S.channel = null; }
-  S.room = null; LS.set("cad-room",""); await loadRooms(); closeSheets();
+  S.room = null; LS.set("sinema-room",""); await loadRooms(); closeSheets();
   if (S.rooms[0]) await openRoom(S.rooms[0]); else onboard(null);
 };
 $("logoutBtn").onclick = logout;
@@ -316,7 +316,7 @@ $("saveProfile").onclick = async () => {
       sb.auth.updateUser({ data:{ name, avatar } }),
     ]);
     if (e1 || e2) throw (e1 || e2);
-    S.name = name; S.avatar = avatar; LS.set("cad-name", name);
+    S.name = name; S.avatar = avatar; LS.set("sinema-name", name);
     S.members[S.me] = name; S.avatars[S.me] = avatar;
     renderPeople(); btn.textContent = "Profil enregistré ✓";
     setTimeout(() => btn.textContent = "Enregistrer le profil", 1600);

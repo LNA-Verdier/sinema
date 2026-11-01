@@ -1,10 +1,10 @@
 // Sinema · auth.js — Compte : inscription, connexion, mot de passe oublié, déconnexion.
-import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011910";
-import { afterLogin } from "./main.js?v=202611011910";
+import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011916";
+import { afterLogin } from "./main.js?v=202611011916";
 
 
 // ================== Compte ==================
-const redirectHome = () => { const c = LS.get("cad-invite"); return c ? `${HOME}?salon=${c}` : HOME; };
+const redirectHome = () => { const c = LS.get("sinema-invite"); return c ? `${HOME}?salon=${c}` : HOME; };
 const PASS_OK = p => p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p);
 function authMessage(err){
   const m = (err && err.message) || String(err);
@@ -27,7 +27,7 @@ function setAuthMode(mode){
 }
 function showAuth(mode){
   $("view-auth").hidden = false; $("authForm").hidden = false; $("checkMail").hidden = true;
-  $("authName").value = LS.get("cad-name") || ""; setAuthMode(mode); refreshSegs();
+  $("authName").value = LS.get("sinema-name") || ""; setAuthMode(mode); refreshSegs();
 }
 function showCheckMail(email){ $("authForm").hidden = true; $("checkMail").hidden = false; $("checkMailTo").textContent = email; }
 $("authForm").onsubmit = async e => {
@@ -41,7 +41,7 @@ $("authForm").onsubmit = async e => {
       if (!PASS_OK(password)){ showNotice("Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres."); return; }
       const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name }, emailRedirectTo: redirectHome() } });
       if (error) throw error;
-      LS.set("cad-name", name);
+      LS.set("sinema-name", name);
       if (data.session) return afterLogin(data.session);
       if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length){ setAuthMode("login"); showNotice("Un compte existe déjà avec cet e-mail. Connecte-toi."); return; }
       showCheckMail(email);
@@ -80,7 +80,7 @@ async function logout(){
   // rien ne reste de la personne sur l'appareil : données gardées pour le mode hors connexion, choix en attente
   try{ await caches.delete("sinema-data"); }catch{}
   LS.set("sinema-outbox","");
-  LS.set("cad-room",""); location.href = HOME;
+  LS.set("sinema-room",""); location.href = HOME;
 }
 
 export { PASS_OK, authMessage, logout, setAuthMode, showAuth, showReset };
