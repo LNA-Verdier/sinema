@@ -7,8 +7,8 @@
 //
 // Secrets à définir (Edge Functions → Secrets) :
 //   TMDB_TOKEN       jeton « API Read Access Token » de TMDB (obligatoire)
-// (SUPABASE_URL est fourni automatiquement par Supabase.)
 //   ALLOWED_ORIGINS  adresses du site séparées par des virgules (facultatif)
+// SUPABASE_URL est fourni automatiquement par Supabase.
 
 const TMDB = "https://api.themoviedb.org/3";
 const ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ||
