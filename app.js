@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011859";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011859";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011901";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011901";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -1409,7 +1409,8 @@ function genreEdges(){
   $("gPrev").hidden = $("gNext").hidden = start && end;   // tout tient sur la ligne : pas de flèches
 }
 $("mineGenres").addEventListener("scroll", genreEdges);
-// Défilement par pastilles entières : la pastille coupée d'un côté devient la première visible de l'autre
+// Défilement par pastilles entières, toujours aligné à gauche : vers la droite, la pastille coupée devient la première ;
+// vers la gauche, on recule d'environ une largeur en commençant par un genre entier
 const ARROW_ZONE = 0; // les flèches sont désormais à côté du bandeau, elles ne masquent plus rien
 // Défilement animé (même rendu sur tous les navigateurs), désactivé si l'utilisateur limite les animations
 let glideAnim = 0;
@@ -1428,8 +1429,12 @@ function genreStep(dir){
     const cut = chips.find(c => c.getBoundingClientRect().right > right + 1);
     if (cut) glide(g, cut.getBoundingClientRect().left - left);
   } else {
-    const cut = [...chips].reverse().find(c => c.getBoundingClientRect().left < left - 1);
-    if (cut) glide(g, cut.getBoundingClientRect().right - right);
+    // retour d'environ une largeur, en alignant toujours un genre entier sur le bord gauche
+    const pos = c => c.getBoundingClientRect().left - box.left + g.scrollLeft;   // position dans le bandeau
+    const desired = g.scrollLeft - g.clientWidth;
+    let first = chips.find(c => pos(c) >= desired - 1) || chips[0];
+    if (pos(first) >= g.scrollLeft - 1){ const i = chips.indexOf(first); first = chips[Math.max(0, i - 1)]; } // avancer d'au moins un genre
+    glide(g, pos(first) - g.scrollLeft);
   }
 }
 $("gPrev").onclick = () => genreStep(-1);
