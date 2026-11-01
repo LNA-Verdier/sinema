@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 v=$(date -u +%Y%m%d%H%M)
-files=(index.html js/*.js)
+files=(index.html manifest.webmanifest js/*.js)
 [ -f sw.js ] && files+=(sw.js)
 sed -i -E "s/\?v=[0-9]{12}/?v=$v/g" "${files[@]}"
 echo "Version $v"

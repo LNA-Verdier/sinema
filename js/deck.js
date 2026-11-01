@@ -1,10 +1,10 @@
 // Sinema · deck.js — Pile de cartes : filtres TMDB, remplissage, tri chez moi / au cinéma, rendu des cartes et actions (swipe, annuler, vu).
-import { avatarSVG, avatarFor } from "./avatars.js?v=202611011920";
-import { $, LS, isOffline, showOffline, ANIM, FAMILY, GENRES, IMG, S, fmtMins, genreMatch, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, reportError, sb, snapshot, tmdb, tmdbPage, typeOf } from "./core.js?v=202611011920";
-import { matchKind, movieOf, nameOf, openRoom, others, renderRoomBadges, roomLabel } from "./rooms.js?v=202611011920";
-import { renderMatches, renderMine } from "./lists.js?v=202611011920";
-import { openMenu } from "./sheets.js?v=202611011920";
-import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011920";
+import { avatarSVG, avatarFor } from "./avatars.js?v=202611011924";
+import { $, LS, isOffline, showOffline, ANIM, FAMILY, GENRES, IMG, S, fmtMins, genreMatch, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, reportError, sb, snapshot, tmdb, tmdbPage, typeOf } from "./core.js?v=202611011924";
+import { matchKind, movieOf, nameOf, openRoom, others, renderRoomBadges, roomLabel } from "./rooms.js?v=202611011924";
+import { renderMatches, renderMine } from "./lists.js?v=202611011924";
+import { openMenu } from "./sheets.js?v=202611011924";
+import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011924";
 
 // ================== Filtres et pile de films ==================
 function filterOk(m){

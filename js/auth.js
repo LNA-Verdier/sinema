@@ -1,6 +1,6 @@
 // Sinema · auth.js — Compte : inscription, connexion, mot de passe oublié, déconnexion.
-import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011920";
-import { afterLogin } from "./main.js?v=202611011920";
+import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011924";
+import { afterLogin } from "./main.js?v=202611011924";
 
 
 // ================== Compte ==================

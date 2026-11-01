@@ -1,7 +1,7 @@
 // Sinema · lists.js — Listes : « Nos matchs » et « Ma watchlist » (lignes, tri, pages, bandeau des genres, film surprise).
-import { $, ICON, IMG, LS, S, getDetails, isTv, reduceMotion, tmdbPage } from "./core.js?v=202611011920";
-import { matchList, nameOf, others, verdictOf } from "./rooms.js?v=202611011920";
-import { removeVerdict, setVerdict, toggleWatched } from "./deck.js?v=202611011920";
+import { $, ICON, IMG, LS, S, getDetails, isTv, reduceMotion, tmdbPage } from "./core.js?v=202611011924";
+import { matchList, nameOf, others, verdictOf } from "./rooms.js?v=202611011924";
+import { removeVerdict, setVerdict, toggleWatched } from "./deck.js?v=202611011924";
 
 function rowEl(m, id){
   const row = document.createElement("div"); row.className = "row";

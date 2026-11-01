@@ -66,7 +66,7 @@ for (const [f, m] of Object.entries(mods)){
 }
 // un seul numéro de version partout (sinon un module serait chargé deux fois)
 const versions = new Set();
-for (const f of ["index.html", "sw.js", ...files.filter(f => f.startsWith("js/"))])
+for (const f of ["index.html", "manifest.webmanifest", "sw.js", ...files.filter(f => f.startsWith("js/"))])
   for (const v of fs.readFileSync(path.join(ROOT, f), "utf8").matchAll(/\?v=(\d+)/g)) versions.add(v[1]);
 if (versions.size > 1) problems.push(`plusieurs numéros de version : ${[...versions].join(", ")} (lancer scripts/version.sh)`);
 
