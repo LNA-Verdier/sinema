@@ -14,21 +14,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=202611011758">
+<link rel="stylesheet" href="style.css?v=202611011804">
 </head>
 <body>
 <div class="app">
   <header>
     <div class="brand"><span>S</span>inema</div>
     <button class="roombtn" id="menuBtn" type="button" hidden aria-haspopup="dialog">
-      <span class="roomname" id="roomName"></span>
+      <span class="roomname" id="roomName"></span><span class="count" id="roomBadge" hidden title="Nouveaux matchs dans tes autres salons"></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
   </header>
 
   <div class="seg tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-swipe" data-view="swipe" aria-selected="true">Swiper</button>
-    <button type="button" role="tab" id="tab-matches" data-view="matches" aria-selected="false">Nos films <span class="count" id="mcount">0</span></button>
+    <button type="button" role="tab" id="tab-matches" data-view="matches" aria-selected="false">Nos matchs <span class="count" id="mcount">0</span></button>
     <button type="button" role="tab" id="tab-mine" data-view="mine" aria-selected="false">Ma watchlist</button>
   </div>
 
@@ -82,7 +82,7 @@
     <!-- Arrivée par un lien d'invitation -->
     <div class="sheet" id="joinInvite" hidden>
       <h3>Rejoindre un salon existant</h3>
-      <p>Quelqu'un t'a invité dans son salon (code <b id="joinCodeLabel"></b>). En le rejoignant, vous swiperez ensemble et vos envies communes apparaîtront dans « Nos films ».</p>
+      <p>Quelqu'un t'a invité dans son salon (code <b id="joinCodeLabel"></b>). En le rejoignant, vous swiperez ensemble et vos envies communes apparaîtront dans « Nos matchs ».</p>
       <button class="cta" type="button" id="joinInviteBtn">Rejoindre ce salon</button>
       <button class="linkbtn" type="button" id="inviteOtherBtn">Non merci, je préfère créer mon propre salon</button>
       <p class="fine">Tes choix (envies, bof, déjà vu) servent uniquement à trouver vos titres en commun.</p>
@@ -332,11 +332,12 @@
   </div>
 </div>
 
-<div class="match" id="match" hidden><div class="box" id="matchBox">
+<button class="toast" id="match" type="button" hidden aria-live="polite">
   <img id="matchPoster" alt="">
-  <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
-</div></div>
+  <span class="tt"><small id="matchKind">Match !</small><strong id="matchTitle"></strong></span>
+  <span class="go" aria-hidden="true">›</span>
+</button>
 
-<script type="module" src="app.js?v=202611011758"></script>
+<script type="module" src="app.js?v=202611011804"></script>
 </body>
 </html>

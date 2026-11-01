@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011758";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011758";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011804";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011804";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -350,28 +350,36 @@ async function openRoom(room, { justCreated=false, justJoined=false } = {}){
   S.history = [];
   await refill(true);
   setView(justCreated ? "swipe" : S.view);
+  lastBadge = Object.fromEntries(S.rooms.map(r => [r.id, newMatches(r.id).length]));
   renderAll();
   if (justCreated) openMenu();
   if (justJoined){
     const n = matchList().filter(x => x.kind !== "partial").length;
-    if (n) showNotice(`Bienvenue ! Grâce à vos choix passés, vous avez déjà ${n} film${n>1?"s":""} en commun dans ce salon.`);
+    if (n) showNotice(`Bienvenue ! Grâce à vos choix passés, vous avez déjà ${n} titre${n>1?"s":""} en commun dans ce salon.`);
   }
 }
 
+// Charge les membres et les choix de tous mes salons (pour les pastilles de nouveaux matchs),
+// puis prépare le salon courant.
 async function loadRoom(){
+  const roomIds = S.rooms.map(r => r.id);
+  if (!roomIds.includes(S.room.id)) roomIds.push(S.room.id);
   const [m, w] = await Promise.all([
-    sb.from("members").select("user_id,name,avatar").eq("room_id", S.room.id),
+    sb.from("members").select("room_id,user_id,name,avatar").in("room_id", roomIds),
     sb.from("watched").select("movie_id").eq("room_id", S.room.id),
   ]);
   for (const r of [m,w]) if (r.error) throw r.error;
-  S.members = Object.fromEntries(m.data.map(x=>[x.user_id, x.name]));
-  S.avatars = Object.fromEntries(m.data.map(x=>[x.user_id, cleanAvatar(x.avatar || avatarFor(x.user_id))]));
+  S.roomMembers = new Map();
+  m.data.forEach(x => { if (!S.roomMembers.has(x.room_id)) S.roomMembers.set(x.room_id, []); S.roomMembers.get(x.room_id).push(x.user_id); });
+  const here = m.data.filter(x => x.room_id === S.room.id);
+  S.members = Object.fromEntries(here.map(x=>[x.user_id, x.name]));
+  S.avatars = Object.fromEntries(here.map(x=>[x.user_id, cleanAvatar(x.avatar || avatarFor(x.user_id))]));
   S.avatars[S.me] = S.avatar;
   S.watched = new Set(w.data.map(x=>x.movie_id));
-  const others = Object.keys(S.members).filter(u => u !== S.me);
-  S.theirs = new Map(others.map(u => [u, new Map()]));
-  if (others.length){
-    const { data, error } = await sb.from("user_swipes").select("user_id,movie_id,verdict,movie").in("user_id", others);
+  const people = [...new Set(m.data.map(x => x.user_id))].filter(u => u !== S.me);
+  S.theirs = new Map(people.map(u => [u, new Map()]));
+  if (people.length){
+    const { data, error } = await sb.from("user_swipes").select("user_id,movie_id,verdict,movie").in("user_id", people);
     if (error) throw error;
     data.forEach(r => S.theirs.get(r.user_id)?.set(r.movie_id, { verdict:r.verdict, movie:r.movie }));
   }
@@ -383,7 +391,7 @@ function subscribeMine(){
     .on("postgres_changes", { event:"*", schema:"public", table:"user_swipes", filter:`user_id=eq.${S.me}` }, ({ eventType, new:n, old:o }) => {
       if (eventType === "DELETE") S.mine.delete(o.movie_id);
       else S.mine.set(n.movie_id, { verdict:n.verdict, movie:n.movie, at:n.updated_at });
-      renderMatches(); renderMine();
+      renderMatches(); renderMine(); renderRoomBadges();
     }).subscribe();
 }
 
@@ -394,12 +402,13 @@ function subscribeRoom(){
     .on("postgres_changes", { event:"*", schema:"public", table:"user_swipes" }, ({ eventType, new:n, old:o }) => {
       const row = eventType === "DELETE" ? o : n;
       if (!row || row.user_id === S.me || !S.theirs.has(row.user_id)) return;
+      const inRoom = row.user_id in S.members;
       const before = matchKind(row.movie_id);
       if (eventType === "DELETE") S.theirs.get(row.user_id).delete(row.movie_id);
       else S.theirs.get(row.user_id).set(row.movie_id, { verdict:n.verdict, movie:n.movie });
       const after = matchKind(row.movie_id);
-      if (after && after !== "partial" && after !== before) celebrate(row.movie_id, after);
-      if (n?.verdict === "like" && !S.mine.has(n.movie_id) && !S.queue.some(q=>q.id===n.movie_id) && n.movie?.title && filterOk(n.movie)){
+      if (inRoom && after && after !== "partial" && after !== before) celebrate(row.movie_id, after);
+      if (inRoom && n?.verdict === "like" && !S.mine.has(n.movie_id) && !S.queue.some(q=>q.id===n.movie_id) && n.movie?.title && filterOk(n.movie)){
         (S.pending = S.pending || []).splice(Math.floor(Math.random() * (S.pending.length + 1)), 0, n.movie);
       }
       renderAll();
@@ -431,8 +440,8 @@ const movieOf = id => S.mine.get(id)?.movie || [...S.theirs.values()].map(m => m
 
 // match : tout le monde a envie. revoir : tout le monde a envie ou l'a déjà vu (au moins une envie, au moins un déjà vu).
 // partial (salons de 3+) : au moins 2 envies sans unanimité.
-function matchKind(id){
-  const ids = [S.me, ...others()];
+function matchKind(id){ return matchKindIn([S.me, ...others()], id); }
+function matchKindIn(ids, id){
   if (ids.length < 2) return null;
   const v = ids.map(u => verdictOf(u, id));
   const likes = v.filter(x => x === "like").length, seens = v.filter(x => x === "seen").length;
@@ -441,6 +450,37 @@ function matchKind(id){
   if (ids.length >= 3 && likes >= 2) return "partial";
   return null;
 }
+// ---------- Pastilles « nouveaux matchs » par salon ----------
+// On mémorise (sur l'appareil) les matchs déjà vus de chaque salon ; les autres sont « nouveaux ».
+const seenKey = roomId => "sinema-seen-" + roomId;
+function roomMatchIds(roomId){
+  const ids = S.roomMembers?.get(roomId) || [];
+  if (ids.length < 2) return [];
+  const all = new Set([...S.mine.keys(), ...[...S.theirs.values()].flatMap(mp => [...mp.keys()])]);
+  return [...all].filter(id => { const k = matchKindIn(ids, id); return k === "match" || k === "revoir"; });
+}
+function seenSet(roomId){ try{ const v = LS.get(seenKey(roomId)); return v ? new Set(JSON.parse(v)) : null; }catch{ return null; } }
+function markRoomSeen(roomId){ LS.set(seenKey(roomId), JSON.stringify(roomMatchIds(roomId))); }
+function newMatches(roomId){
+  const seen = seenSet(roomId), ids = roomMatchIds(roomId);
+  if (!seen){ LS.set(seenKey(roomId), JSON.stringify(ids)); return []; } // premier passage : on ne signale pas l'historique
+  return ids.filter(id => !seen.has(id));
+}
+let lastBadge = {};
+function renderRoomBadges(){
+  if (!S.room) return;
+  markRoomSeen(S.room.id);
+  let total = 0;
+  for (const r of S.rooms){
+    if (r.id === S.room.id) continue;
+    const fresh = newMatches(r.id), n = fresh.length;
+    total += n;
+    if (n > (lastBadge[r.id] || 0)){ const id = fresh.at(-1); toast(id, matchKindIn(S.roomMembers.get(r.id), id), r); }
+    lastBadge[r.id] = n;
+  }
+  const b = $("roomBadge"); b.hidden = !total; b.textContent = total;
+}
+
 function matchList(){
   const seen = new Set([...S.mine.keys(), ...[...S.theirs.values()].flatMap(m => [...m.keys()])]);
   const out = [];
@@ -711,7 +751,7 @@ function renderMatches(){
     .sort((a,b) => (S.watched.has(a.id) - S.watched.has(b.id)) || order[a.kind]-order[b.kind] || b.likes-a.likes);
   if (!shown.length){
     const e=document.createElement("div"); e.className="lempty";
-    e.textContent = all.length ? "Tous vos films en commun sont marqués comme vus."
+    e.textContent = all.length ? "Tous vos titres en commun sont marqués comme vus."
       : others().length ? "Pas encore de titre en commun. Continuez à swiper, ils apparaîtront ici dès que vous serez d'accord."
       : "Invite quelqu'un dans ce salon depuis le menu en haut à droite.";
     list.appendChild(e); return;
@@ -772,7 +812,9 @@ function renderMenu(){
     b.setAttribute("aria-current", S.room && r.id === S.room.id);
     b.innerHTML = `<b></b><span></span>`;
     b.querySelector("b").textContent = roomLabel(r);
+    const fresh = S.room && r.id === S.room.id ? 0 : newMatches(r.id).length;
     b.querySelector("span").textContent = S.room && r.id === S.room.id ? "actuel" : r.code;
+    if (fresh){ const c = document.createElement("i"); c.className = "count"; c.textContent = `${fresh} nouveau${fresh>1?"x":""} match${fresh>1?"s":""}`; b.querySelector("b").after(c); }
     b.onclick = async () => { if (S.room?.id === r.id) return closeSheets(); closeSheets(); try{ await openRoom(r); }catch(err){ reportError(err); } };
     list.appendChild(b);
   });
@@ -930,7 +972,7 @@ async function switchType(type){
 }
 
 function renderAll(){
-  renderPeople(); renderStage(); renderMatches(); renderMine();
+  renderPeople(); renderStage(); renderMatches(); renderMine(); renderRoomBadges();
   const n = activeFilterCount(); $("fcount").hidden = !n; $("fcount").textContent = n;
 }
 
@@ -999,7 +1041,7 @@ async function act(kind){
     }
   } catch(err){ reportError(err); }
   finally { S.busy = false; }
-  renderStage(); renderMatches(); renderMine();
+  renderStage(); renderMatches(); renderMine(); renderRoomBadges();
   if (S.queue.length < 5) refill().then(renderStage).catch(reportError);
 }
 
@@ -1017,7 +1059,7 @@ async function setVerdict(id, verdict, movie){
   S.mine.set(id, { verdict, movie, at:new Date().toISOString() });
   const after = matchKind(id);
   if (after && after !== "partial" && after !== before) celebrate(id, after);
-  renderMine(); renderMatches();
+  renderMine(); renderMatches(); renderRoomBadges();
   try{ await saveVerdict(id, verdict, movie); }catch(err){ reportError(err); }
 }
 async function removeVerdict(id){
@@ -1031,28 +1073,38 @@ async function removeVerdict(id){
 async function toggleWatched(id){
   const had = S.watched.has(id);
   if (had) S.watched.delete(id); else S.watched.add(id);
+  // Vu ensemble ici = je l'ai vu : mon choix passe à « déjà vu », donc dans mes autres salons
+  // le titre reste proposé « à revoir » à ceux qui en ont envie.
+  if (!had && S.mine.get(id)?.verdict === "like"){
+    const movie = S.mine.get(id).movie || movieOf(id);
+    S.mine.set(id, { verdict:"seen", movie, at:new Date().toISOString() });
+    saveVerdict(id, "seen", movie).catch(reportError);
+    renderMine(); renderRoomBadges();
+  }
   renderMatches();
   const q = had ? sb.from("watched").delete().match({ room_id:S.room.id, movie_id:id })
                 : sb.from("watched").upsert({ room_id:S.room.id, movie_id:id }, { ignoreDuplicates:true });
   const { error } = await q; if (error) reportError(error);
 }
 
-let matchTimer;
-function celebrate(id, kind){
-  const m = movieOf(id);
-  $("matchTitle").textContent = m.title || "";
-  const img = $("matchPoster"); img.hidden = !m.poster; if (m.poster) img.src = IMG(m.poster, "w342");
-  $("matchBox").classList.toggle("revoir", kind === "revoir");
-  $("matchKind").textContent = kind === "revoir" ? "Match à revoir" : "C'est un match";
-  const all = [S.me, ...others()];
-  const likers = all.filter(u => verdictOf(u,id) === "like").map(u => u===S.me ? "toi" : nameOf(u));
-  const seers  = all.filter(u => verdictOf(u,id) === "seen").map(u => u===S.me ? "toi" : nameOf(u));
-  const list = a => a.length <= 1 ? (a[0]||"") : a.slice(0,-1).join(", ") + " et " + a.at(-1);
-  $("matchWho").textContent = kind === "match"
-    ? (all.length === 2 ? `Toi et ${nameOf(others()[0])} voulez le voir. Ajouté à vos films.` : `Tout le salon veut le voir ! Ajouté à vos films.`)
-    : `Envie : ${list(likers)}. Déjà vu : ${list(seers)}. À regarder ensemble ?`;
-  $("match").hidden = false; clearTimeout(matchTimer); matchTimer = setTimeout(() => $("match").hidden = true, 2800);
+// Notification de match : un bandeau compact en haut de l'écran, cliquable
+let matchTimer, toastTarget = null;
+function celebrate(id, kind){ toast(id, kind, null); }
+function toast(id, kind, room){
+  const m = movieOf(id), t = $("match");
+  $("matchTitle").textContent = m.title || "Nouveau titre";
+  const img = $("matchPoster"); img.hidden = !m.poster; if (m.poster) img.src = IMG(m.poster, "w92");
+  $("matchKind").textContent = (kind === "revoir" ? "Match à revoir" : "Match !") + (room ? ` · ${roomLabel(room)}` : "");
+  t.classList.toggle("revoir", kind === "revoir");
+  toastTarget = room;
+  t.hidden = false; t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+  clearTimeout(matchTimer); matchTimer = setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.hidden = true, 250); }, 2600);
 }
+$("match").onclick = async () => {
+  $("match").hidden = true;
+  if (toastTarget && toastTarget.id !== S.room?.id){ S.view = "matches"; try{ await openRoom(toastTarget); }catch(err){ reportError(err); } }
+  else setView("matches");
+};
 
 // ================== Feuilles : menu et filtres ==================
 // Vide les champs de création / d'invitation (pour ne pas réutiliser un ancien code par erreur)
