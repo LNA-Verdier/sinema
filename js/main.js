@@ -1,13 +1,13 @@
 // Sinema · main.js — Point d'entrée : démarrage, après connexion, changement d'onglet et de type, rendu global, raccourcis clavier.
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js?v=202611011916";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js?v=202611011920";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011916";
-import { $, GENRES, LS, OFFLINE_TEXT, S, isOffline, reportError, showOffline, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011916";
-import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011916";
-import { loadMine, loadRoom, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011916";
-import { act, flushOutbox, pendingRows, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011916";
-import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011916";
-import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011916";
+import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011920";
+import { $, GENRES, LS, OFFLINE_TEXT, S, isOffline, reportError, showOffline, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011920";
+import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011920";
+import { loadMine, loadRoom, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011920";
+import { act, flushOutbox, pendingRows, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011920";
+import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011920";
+import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011920";
 
 // ================== Démarrage ==================
 async function boot(){
