@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011819";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011819";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011824";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011824";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -611,6 +611,20 @@ function pushWithShared(batch){
     if (!ids.has(m.id)){ S.queue.push(m); ids.add(m.id); }
   }
 }
+// Filtre par personne : TMDB renvoie tous les films où la personne apparaît, quel que soit son rôle
+// (producteur, scénariste, remerciements…). On ne garde que ceux où elle a le rôle attendu :
+// réalisation pour un réalisateur, jeu pour un acteur ou une actrice.
+async function loadPersonFilm(){
+  const p = S.filters.person;
+  if (!p || S.type === "tv"){ S.personFilms = null; return; }
+  if (S.personFilms?.key === `${p.id}:${p.role}`) return;
+  const role = p.role || (/Réalisation/.test(p.dept || "") ? "director" : "actor");
+  const c = await tmdb(`/person/${p.id}/movie_credits`);
+  const ids = role === "director"
+    ? (c.crew || []).filter(x => x.job === "Director" || x.job === "Co-Director").map(x => x.id)
+    : (c.cast || []).map(x => x.id);
+  S.personFilms = { key:`${p.id}:${p.role}`, ids:new Set(ids) };
+}
 async function refill(reset = false){
   if (reset){
     S.queue = []; S.pageOrder = null; S.pageIdx = 0; S.totalPages = 1;
@@ -618,6 +632,7 @@ async function refill(reset = false){
   }
   if (S.loading) return;
   S.loading = true;
+  try{ await loadPersonFilm(); }catch(err){ S.personFilms = null; console.warn(err); }
   try{
     let guard = 0;
     while (S.queue.length < 8 && guard++ < 6){
@@ -635,7 +650,7 @@ async function refill(reset = false){
         S.pageIdx = 0;
       }
       const inQueue = new Set(S.queue.map(q=>q.id));
-      const batch = shuffle(d.results.filter(x => genreMatch(x, S.filters.genres)).map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
+      const batch = shuffle(d.results.filter(x => genreMatch(x, S.filters.genres) && (!S.personFilms || S.personFilms.ids.has(x.id))).map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
       pushWithShared(batch);
     }
   } finally { S.loading = false; }
@@ -1229,7 +1244,7 @@ $("fPerson").addEventListener("input", () => {
         b.querySelector("b").textContent = p.name;
         const known = (p.known_for || []).map(k => k.title || k.name).filter(Boolean).slice(0,2).join(", ");
         b.querySelector("small").textContent = [DEPT[p.known_for_department] || "", known].filter(Boolean).join(" · ");
-        b.onclick = () => { draftPerson = { id:p.id, name:p.name, dept:DEPT[p.known_for_department] || "" }; renderPerson(); };
+        b.onclick = () => { draftPerson = { id:p.id, name:p.name, dept:DEPT[p.known_for_department] || "", role: p.known_for_department === "Directing" ? "director" : "actor" }; renderPerson(); };
         list.appendChild(b);
       });
       list.hidden = false; $("fPerson").setAttribute("aria-expanded","true");
