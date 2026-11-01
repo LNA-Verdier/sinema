@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011712";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011712";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011714c";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011714c";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -601,7 +601,11 @@ async function vetQueue(){
       if (S.filters.avail !== "home") break;
       if (d && !d.hasHomeOffer && S.queue[i] === m){ S.queue.splice(i, 1); i--; changed = true; }
     }
-    if (changed){ renderStage(); if (S.queue.length < 5) refill().then(() => { renderStage(); vetQueue(); }).catch(reportError); }
+    if (changed){
+      renderStage();
+      // garde-fou : on ne relance pas indéfiniment la recherche si TMDB renvoie surtout des titres sans offre
+      if (S.queue.length < 5 && (S.vetRefills = (S.vetRefills||0) + 1) <= 5) refill().then(() => { renderStage(); vetQueue(); }).catch(reportError);
+    } else S.vetRefills = 0;
   } finally { vetting = false; }
 }
 function renderStage(){
