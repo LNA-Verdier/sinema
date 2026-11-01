@@ -258,13 +258,13 @@
     <p class="fine" id="modeHelp"></p>
     <label for="fGenre">Genre</label>
     <select id="fGenre"><option value="">Tous les genres</option></select>
-    <label for="fAvail">Disponibilité</label>
-    <select id="fAvail">
-      <option value="">Peu importe</option>
-      <option value="cinema" id="availCinema">Au cinéma en ce moment</option>
-      <option value="flatrate">En streaming sur abonnement</option>
-      <option value="vod">En VOD (location ou achat)</option>
-    </select>
+    <label>Où le regarder ?</label>
+    <div class="seg" role="tablist" id="availSeg">
+      <button type="button" role="tab" data-v="home" aria-selected="true">Chez moi</button>
+      <button type="button" role="tab" data-v="cinema" aria-selected="false" id="availCinema">Au cinéma</button>
+      <button type="button" role="tab" data-v="all" aria-selected="false">Tout</button>
+    </div>
+    <p class="fine" id="availHelp"></p>
     <label for="fPeriod" id="periodLabel">Année de sortie</label>
     <select id="fPeriod">
       <option value="">Toutes les années</option>
