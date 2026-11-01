@@ -85,10 +85,11 @@ function normalize(m, type){
 const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
 
 // ================== État ==================
-const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", country:"", person:null, avail:"" };
+const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", countries:[], person:null, avail:"" };
 function loadFilters(){
   let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
-  return { movie:{ ...DEFAULT_FILTERS, ...(all.movie||{}) }, tv:{ ...DEFAULT_FILTERS, ...(all.tv||{}) } };
+  const fix = f => { const x = { ...DEFAULT_FILTERS, ...(f||{}) }; if (!Array.isArray(x.countries)) x.countries = []; if (x.country){ x.countries = [x.country]; } delete x.country; return x; };
+  const r = { movie:fix(all.movie), tv:fix(all.tv) }; r.tv.person = null; return r;
 }
 const S = {
   me:null, email:"", name:"", avatar:null,
@@ -427,7 +428,7 @@ function discoverParams(page){
   else { p.sort_by = "popularity.desc"; p["vote_count.gte"] = "300"; }
   if (f.rating && f.mode !== "gems") p["vote_average.gte"] = f.rating;
   if (f.genre) p.with_genres = f.genre;
-  if (f.country) p.with_origin_country = f.country;
+  if (f.countries?.length) p.with_origin_country = f.countries.join("|"); // « | » = l'un ou l'autre
   if (f.person && !tv) p.with_people = String(f.person.id);
   const dateKey = tv ? "first_air_date" : "primary_release_date";
   if (f.period){
@@ -468,15 +469,6 @@ async function refill(reset = false){
       let page;
       if (S.filters.mode === "mix" && S.pageOrder){ if (S.pageIdx >= S.pageOrder.length) break; page = S.pageOrder[S.pageIdx++]; }
       else { if (S.pageIdx >= Math.min(S.totalPages, 500)) break; page = ++S.pageIdx; }
-      if (S.type === "tv" && S.filters.person){
-        // la recherche de séries par personne passe par sa filmographie (TMDB ne la propose pas en découverte)
-        if (S.pageIdx++ > 0) break;
-        const c = await tmdb(`/person/${S.filters.person.id}/tv_credits`);
-        const seen = new Set(), inQueue = new Set(S.queue.map(q=>q.id));
-        const all = [...(c.cast||[]), ...(c.crew||[])].filter(x => !seen.has(x.id) && seen.add(x.id)).sort((a,b) => (b.popularity||0)-(a.popularity||0));
-        S.queue.push(...all.map(x => normalize(x, "tv")).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
-        break;
-      }
       const d = await tmdb(`/discover/${S.type}`, discoverParams(page));
       S.totalPages = d.total_pages || 1;
       if (S.filters.mode === "mix" && !S.pageOrder){
@@ -683,12 +675,13 @@ function renderFilters(){
   $("filtersTitle").textContent = tv ? "Filtres séries" : "Filtres films";
   fillGenreSelect();
   $("periodLabel").textContent = tv ? "Première diffusion" : "Année de sortie";
-  $("personLabelText").textContent = tv ? "Créateur, acteur ou actrice" : "Réalisateur, acteur ou actrice";
   $("availCinema").disabled = tv; $("availCinema").hidden = tv;
   $("fAvail").value = tv && f.avail === "cinema" ? "" : f.avail;
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
-  $("fGenre").value = f.genre; $("fPeriod").value = f.period; $("fCountry").value = f.country;
+  $("fGenre").value = f.genre; $("fPeriod").value = f.period;
+  $("fCountries").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", (f.countries||[]).includes(b.dataset.v)));
+  $("personBlock").hidden = tv;
   draftPerson = f.person; renderPerson();
   modeHelp();
 }
@@ -698,7 +691,8 @@ function modeHelp(){
     mix:`Un tirage au hasard parmi des milliers de ${w}, connus ou non.`,
     gems:`Des ${w} très bien notés mais peu vus : de quoi faire des découvertes.` }[segValue($("modeSeg"))];
 }
-function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","country","person","avail"].filter(k => f[k]).length + (f.mode !== "top" ? 1 : 0); }
+function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","person","avail"].filter(k => f[k]).length + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
+$("fCountries").addEventListener("click", e => { const b = e.target.closest("button"); if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); });
 const saveFilters = () => LS.set("sinema-filters2", JSON.stringify(S.filtersBy));
 async function switchType(type){
   if (type === S.type) return;
@@ -871,7 +865,7 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), country:$("fCountry").value, person:draftPerson, avail:$("fAvail").value };
+  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:$("fAvail").value };
   saveFilters();
   closeSheets(); setView("swipe");
   S.loading = false; await refill(true).catch(reportError); renderAll();

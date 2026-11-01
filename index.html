@@ -279,30 +279,35 @@
       <button type="button" role="tab" data-v="7" aria-selected="false">★ 7+</button>
       <button type="button" role="tab" data-v="8" aria-selected="false">★ 8+</button>
     </div>
-    <label for="fPerson" id="personLabelText">Réalisateur, acteur ou actrice</label>
-    <div class="personpick">
-      <div class="chosen" id="personChosen" hidden><span id="personLabel"></span><button class="iconbtn" type="button" id="personClear" aria-label="Retirer ce filtre">✕</button></div>
-      <input id="fPerson" placeholder="Ex. : Agnès Varda, Omar Sy…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="personList">
-      <div class="suggest" id="personList" role="listbox" hidden></div>
+    <div id="personBlock" class="stack">
+      <label for="fPerson">Réalisateur, acteur ou actrice</label>
+      <div class="personpick">
+        <div class="chosen" id="personChosen" hidden><span id="personLabel"></span><button class="iconbtn" type="button" id="personClear" aria-label="Retirer ce filtre">✕</button></div>
+        <input id="fPerson" placeholder="Ex. : Agnès Varda, Omar Sy…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="personList">
+        <div class="suggest" id="personList" role="listbox" hidden></div>
+      </div>
     </div>
-    <label for="fCountry">Pays de production</label>
-    <select id="fCountry">
-      <option value="">Tous les pays</option>
-      <option value="FR">France</option>
-      <option value="GB">Royaume-Uni</option>
-      <option value="US">États-Unis</option>
-      <option value="BE">Belgique</option>
-      <option value="IT">Italie</option>
-      <option value="ES">Espagne</option>
-      <option value="DE">Allemagne</option>
-      <option value="JP">Japon</option>
-      <option value="KR">Corée du Sud</option>
-      <option value="IN">Inde</option>
-      <option value="CA">Canada</option>
-      <option value="DK">Danemark</option>
-      <option value="SE">Suède</option>
-      <option value="MX">Mexique</option>
-    </select>
+    <label>Pays de production <span class="fine" id="countryHint">(plusieurs choix possibles)</span></label>
+    <div class="chips" id="fCountries">
+      <button type="button" data-v="FR" aria-pressed="false">France</button>
+      <button type="button" data-v="GB" aria-pressed="false">Royaume-Uni</button>
+      <button type="button" data-v="US" aria-pressed="false">États-Unis</button>
+      <button type="button" data-v="BE" aria-pressed="false">Belgique</button>
+      <button type="button" data-v="IT" aria-pressed="false">Italie</button>
+      <button type="button" data-v="ES" aria-pressed="false">Espagne</button>
+      <button type="button" data-v="DE" aria-pressed="false">Allemagne</button>
+      <button type="button" data-v="JP" aria-pressed="false">Japon</button>
+      <button type="button" data-v="KR" aria-pressed="false">Corée du Sud</button>
+      <button type="button" data-v="IN" aria-pressed="false">Inde</button>
+      <button type="button" data-v="CA" aria-pressed="false">Canada</button>
+      <button type="button" data-v="DK" aria-pressed="false">Danemark</button>
+      <button type="button" data-v="SE" aria-pressed="false">Suède</button>
+      <button type="button" data-v="NO" aria-pressed="false">Norvège</button>
+      <button type="button" data-v="MX" aria-pressed="false">Mexique</button>
+      <button type="button" data-v="BR" aria-pressed="false">Brésil</button>
+      <button type="button" data-v="AU" aria-pressed="false">Australie</button>
+      <button type="button" data-v="IE" aria-pressed="false">Irlande</button>
+    </div>
     <div class="row-inline">
       <button class="ghost grow" type="button" id="resetFilters">Réinitialiser</button>
       <button class="cta grow" type="button" id="applyFilters">Appliquer</button>

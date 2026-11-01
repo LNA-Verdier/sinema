@@ -42,6 +42,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .seg.tabs{background:var(--surface)}
 .seg.tabs .ind{background:var(--ink);box-shadow:none}
 .seg.tabs button[aria-selected="true"]{color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.chips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+#modeHelp{min-height:2.9em}
+#personBlock{gap:8px}
 .typeseg{flex:0 0 auto;width:min(190px,50vw)}
 .listtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .listtools input{flex:1 1 180px;padding:8px 12px;font-size:15px}
