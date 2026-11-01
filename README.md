@@ -42,3 +42,7 @@ Pour tester en local : `python3 -m http.server 8000` puis ouvrir http://localhos
 - Les mots de passe sont gérés et chiffrés par Supabase (bcrypt), jamais par le code du site.
 
 Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.
+
+## Licence
+
+© 2026 Loïc Verdier, tous droits réservés. Voir [LICENSE](LICENSE).
