@@ -110,17 +110,19 @@ export function avatarFor(seed){
   return { ...DEFAULT_AVATAR, b: BASES[h % BASES.length].id, c: (h >> 4) % COLORS.length };
 }
 
+let clipSeq = 0;
 export function avatarSVG(a, size = 40, title = ""){
+  const clip = "avc" + (++clipSeq);   // identifiant unique par avatar (un id dupliqué dans la page est du HTML invalide)
   const av = cleanAvatar(a);
   const base = BASES.find(b => b.id === av.b);
   const parts = [
     `<circle cx="32" cy="32" r="32" fill="${COLORS[av.c]}"/>`,
-    `<g clip-path="url(#c)">${base.svg}</g>`,
+    `<g clip-path="url(#${clip})">${base.svg}</g>`,
     face[av.face] ? face[av.face].svg(base.eye) : "",
     eyewear[av.eyes] ? eyewear[av.eyes].svg(base.eye) : "",
     neck[av.neck] ? neck[av.neck].svg(base.neck) : "",
     hat[av.head] ? hat[av.head].svg(base.top) : "",
   ].join("");
   const t = title ? `<title>${title.replace(/[<&>"]/g, "")}</title>` : "";
-  return `<svg class="avatar" viewBox="0 0 64 64" width="${size}" height="${size}" role="img" aria-label="${(title||"Avatar").replace(/[<&>"]/g,"")}">${t}<defs><clipPath id="c"><circle cx="32" cy="32" r="32"/></clipPath></defs>${parts}</svg>`;
+  return `<svg class="avatar" viewBox="0 0 64 64" width="${size}" height="${size}" role="img" aria-label="${(title||"Avatar").replace(/[<&>"]/g,"")}">${t}<defs><clipPath id="${clip}"><circle cx="32" cy="32" r="32"/></clipPath></defs>${parts}</svg>`;
 }

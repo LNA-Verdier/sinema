@@ -46,9 +46,6 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .seg.tabs{background:var(--surface)}
 .seg.tabs .ind{background:var(--ink);box-shadow:none}
 .seg.tabs button[aria-selected="true"]{color:var(--bg)}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chips button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-.chips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 #modeHelp,#availHelp{min-height:2.9em}
 #personBlock{gap:8px}
 .yearhead{display:flex;justify-content:space-between;align-items:baseline}
@@ -76,8 +73,6 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .switch input:checked + .sw::after{transform:translateX(18px)}
 .switch input:focus-visible + .sw{outline:2px solid var(--accent);outline-offset:2px}
 .switch small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
-.chips.logos button{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px}
-.chips.logos img{width:22px;height:22px;border-radius:5px}
 .msel{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:15px;cursor:pointer;text-align:left}
 .msel .msum{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel .msum.placeholder{color:var(--muted)}
@@ -100,7 +95,6 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 /* téléphone : défilement horizontal, avec un fondu à droite qui indique qu'il y a la suite */
 .gchips{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
 .gchips.end{-webkit-mask-image:none;mask-image:none}
-.gchips .moreg{display:none}
 /* ordinateur (souris) : une seule ligne, flèches à côté du bandeau (jamais par-dessus les genres) */
 .gwrap{position:relative;min-width:0}
 .gwrap .garrow{display:none}
@@ -146,8 +140,6 @@ input,select{font-size:16px;padding:10px 12px;border-radius:10px;border:1px soli
 .grow{flex:1}
 .row-inline{display:flex;gap:8px;flex-wrap:wrap}
 .inlineform{display:flex;gap:8px}
-.join-code summary{cursor:pointer;color:var(--muted);font-size:14px;margin-top:4px}
-.join-code .row-inline{margin-top:10px;flex-wrap:nowrap}
 #codeInput,#menuCode{text-transform:uppercase;letter-spacing:.2em;font-weight:700}
 .code{font-family:var(--f-display);font-weight:900;font-size:40px;letter-spacing:.12em;text-align:center;line-height:1}
 .linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;font-size:13px;cursor:pointer;align-self:center}
@@ -239,7 +231,6 @@ input,select{font-size:16px;padding:10px 12px;border-radius:10px;border:1px soli
 .providers img{width:26px;height:26px;border-radius:6px}
 .providers .none{opacity:.75}
 .tmdblink{color:#fff;opacity:.85;font-size:12px}
-.partner{position:absolute;top:14px;left:14px;right:14px;width:max-content;max-width:calc(100% - 28px);font-size:12px;font-weight:600;background:rgba(0,0,0,.6);border-radius:999px;padding:4px 10px}
 .hint{position:absolute;top:24px;font-family:var(--f-display);font-weight:900;font-size:34px;text-transform:uppercase;padding:2px 12px;border:4px solid;border-radius:8px;opacity:0;pointer-events:none;background:rgba(0,0,0,.25);z-index:2}
 .hint.yes{left:18px;color:#7CF2B6;transform:rotate(-12deg)}
 .hint.no{right:18px;color:#FF9AAC;transform:rotate(12deg)}
@@ -307,7 +298,6 @@ input,select{font-size:16px;padding:10px 12px;border-radius:10px;border:1px soli
 .toast .go{font-size:22px;opacity:.6}
 .roombtn .count{margin-left:-2px}
 .roomitem .count{font-style:normal;white-space:nowrap}
-@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.card,.toast,.drawer,.seg .ind{transition:none;animation:none}}
 
 /* Écrans peu hauts (téléphones avec barres du navigateur) : placé en fin de fichier pour l'emporter */

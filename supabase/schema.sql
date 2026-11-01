@@ -58,6 +58,8 @@ create table if not exists public.join_attempts (
   at      timestamptz not null default now()
 );
 create index if not exists join_attempts_user_at on public.join_attempts(user_id, at);
+-- « dans quels salons est cette personne ? » : utilisé par les règles d'accès à chaque lecture
+create index if not exists members_user_id on public.members(user_id);
 alter table public.join_attempts enable row level security; -- aucune règle : accessible uniquement via les fonctions
 
 -- Migration depuis l'ancienne version (swipes rangés par salon) : on garde le choix le plus récent par personne et par film.

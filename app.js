@@ -1,13 +1,17 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011924";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011924";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011937";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011937";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
 const LS = { get(k){ try{ return localStorage.getItem(k); }catch{ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch{} } };
 const IMG = (path, size="w500") => path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
+// Taille d'affiche TMDB suffisante pour la carte, selon sa largeur réelle en pixels (écrans haute densité compris)
+function posterSize(){
+  const px = Math.min(window.innerWidth, 460) * (window.devicePixelRatio || 1);
+  return px <= 360 ? "w342" : px <= 520 ? "w500" : "w780";
+}
 const fmtMins = m => m ? `${Math.floor(m/60)} h ${String(m%60).padStart(2,"0")}` : "";
-const COLORS = ["#D9361E","#2A6FDB","#1E8F5A","#A33DB8","#C98B1E","#0E8C9B","#B8476B"];
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const HOME = location.origin + location.pathname;
 const ICON = {
@@ -78,6 +82,7 @@ function getDetails(id){
     cast: (d.credits?.cast || []).slice(0,4).map(c => c.name),
     providers: ((d["watch/providers"]?.results?.FR?.flatrate) || []).slice(0,5).map(p=>({ name:p.provider_name, logo:p.logo_path })),
     watchLink: d["watch/providers"]?.results?.FR?.link || null,
+    title: isTv(id) ? d.name : d.title, poster: d.poster_path,
     releaseDate: (isTv(id) ? d.first_air_date : d.release_date) || null,
     // au moins une offre en France pour regarder chez soi (abonnement, gratuit, avec pub, location, achat)
     hasHomeOffer: ["flatrate","free","ads","rent","buy"].some(k => (d["watch/providers"]?.results?.FR?.[k] || []).length > 0),
@@ -413,19 +418,26 @@ async function loadRoom(){
 
 // Mes choix faits sur un autre appareil arrivent en direct
 function subscribeMine(){
-  sb.channel("mine-"+S.me)
+  if (S.mineChannel) return;   // déjà abonné (ex. après une réinitialisation de mot de passe)
+  S.mineChannel = sb.channel("mine-"+S.me)
     .on("postgres_changes", { event:"*", schema:"public", table:"user_swipes", filter:`user_id=eq.${S.me}` }, ({ eventType, new:n, old:o }) => {
       if (eventType === "DELETE") S.mine.delete(o.movie_id);
       else S.mine.set(n.movie_id, { verdict:n.verdict, movie:n.movie, at:n.updated_at });
-      renderMatches(); renderMine(); renderRoomBadges();
+      renderLists(); scheduleBadges();
     }).subscribe();
 }
 
+// Filtre temps réel « user_id dans (membres de mes salons) » : la base n'envoie que ce qui nous concerne
+// (au-delà de 100 personnes, limite du filtre, on revient à l'écoute large triée côté appli).
+function peopleFilter(){
+  const ids = [...S.theirs.keys()];
+  return ids.length && ids.length <= 100 ? `user_id=in.(${ids.join(",")})` : null;
+}
 function subscribeRoom(){
   if (S.channel) sb.removeChannel(S.channel);
   const roomId = S.room.id, f = `room_id=eq.${roomId}`;
   S.channel = sb.channel("room-"+roomId)
-    .on("postgres_changes", { event:"*", schema:"public", table:"user_swipes" }, ({ eventType, new:n, old:o }) => {
+    .on("postgres_changes", { event:"*", schema:"public", table:"user_swipes", ...(peopleFilter() ? { filter: peopleFilter() } : {}) }, ({ eventType, new:n, old:o }) => {
       const row = eventType === "DELETE" ? o : n;
       if (!row || row.user_id === S.me || !S.theirs.has(row.user_id)) return;
       const inRoom = row.user_id in S.members;
@@ -437,14 +449,14 @@ function subscribeRoom(){
       if (inRoom && n?.verdict === "like" && !S.mine.has(n.movie_id) && !S.queue.some(q=>q.id===n.movie_id) && n.movie?.title && filterOk(n.movie)){
         (S.pending = S.pending || []).splice(Math.floor(Math.random() * (S.pending.length + 1)), 0, n.movie);
       }
-      renderAll();
+      renderStage(); renderLists(); scheduleBadges();
     })
     .on("postgres_changes", { event:"*", schema:"public", table:"watched", filter:f }, ({ eventType, new:n, old:o }) => {
       if (eventType === "DELETE"){ if (o.room_id !== roomId) return; S.watched.delete(o.movie_id); } else S.watched.add(n.movie_id);
       renderMatches();
     })
     .on("postgres_changes", { event:"*", schema:"public", table:"members", filter:f }, async () => {
-      try{ await loadRoom(); renderAll(); }catch(err){ reportError(err); }
+      try{ const before = peopleFilter(); await loadRoom(); renderAll(); if (peopleFilter() !== before) subscribeRoom(); }catch(err){ reportError(err); }
     })
     .on("postgres_changes", { event:"UPDATE", schema:"public", table:"rooms", filter:`id=eq.${roomId}` }, ({ new:n }) => {
       S.room.name = n.name; const r = S.rooms.find(x => x.id === roomId); if (r) r.name = n.name;
@@ -452,8 +464,12 @@ function subscribeRoom(){
     })
     .subscribe();
 }
+// Au retour sur l'appli, on resynchronise au plus une fois toutes les 3 minutes (le temps réel couvre le reste)
+let lastSync = Date.now();
 document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState === "visible" && S.room){ try{ await Promise.all([loadMine(), loadRoom()]); renderAll(); }catch(err){ reportError(err); } }
+  if (document.visibilityState !== "visible" || !S.room || Date.now() - lastSync < 180000) return;
+  lastSync = Date.now();
+  try{ await Promise.all([loadMine(), loadRoom()]); renderAll(); }catch(err){ reportError(err); }
 });
 
 // ================== Calcul des films en commun ==================
@@ -673,7 +689,7 @@ function cardEl(m, cls){
       <button class="more" type="button" hidden>Voir plus</button>
       <div class="providers"></div>
     </div>`;
-  if (m.poster){ const img = el.querySelector("img.poster"); img.src = IMG(m.poster, "w780"); img.alt = "Affiche : " + m.title; }
+  if (m.poster){ const img = el.querySelector("img.poster"); img.src = IMG(m.poster, posterSize()); img.alt = "Affiche : " + m.title; }
   else el.querySelector(".noposter").textContent = m.title;
   (m.genres||[]).forEach(g => { const s=document.createElement("span"); s.textContent=g; el.querySelector(".genres").appendChild(s); });
   el.querySelector("h2").textContent = m.title;
@@ -736,11 +752,11 @@ async function vetQueue(){
   vetting = true;
   try{
     let changed = false;
-    for (let i = 0; i < Math.min(4, S.queue.length); i++){
-      const m = S.queue[i], d = await getDetails(m.id);
-      if (S.filters.avail !== "home") break;
-      if (!keepAtHome(d) && S.queue[i] === m){ S.queue.splice(i, 1); i--; changed = true; }
-    }
+    const batch = S.queue.slice(0, 4);
+    const infos = await Promise.all(batch.map(m => getDetails(m.id)));   // les 4 vérifications en même temps
+    if (S.filters.avail === "home") batch.forEach((m, i) => {
+      if (!keepAtHome(infos[i])){ const k = S.queue.indexOf(m); if (k > -1){ S.queue.splice(k, 1); changed = true; } }
+    });
     if (changed){
       renderStage();
       // garde-fou : on ne relance pas indéfiniment la recherche si TMDB renvoie surtout des titres sans offre
@@ -765,7 +781,7 @@ function renderStage(){
     st.appendChild(el);
     if (idx === 0){ attachDrag(el); setupMore(el); fillDetails(el, m); }
   });
-  S.queue.slice(3,6).forEach(m => { if (m.poster){ const i=new Image(); i.src=IMG(m.poster,"w780"); } });
+  S.queue.slice(3,6).forEach(m => { if (m.poster){ const i=new Image(); i.src=IMG(m.poster, posterSize()); } });
   ["like","nope","vu","skip"].forEach(b => $(b).disabled = !top3.length);
   $("undo").disabled = !S.history.length;
 }
@@ -791,11 +807,17 @@ function rowEl(m, id){
   const a = document.createElement("a"); a.href = tmdbPage(id); a.target = "_blank"; a.rel = "noopener"; a.className = "titlelink";
   a.textContent = m.title || `Titre ${Math.abs(id)}`; a.title = "Voir la fiche sur TMDB";
   row.querySelector(".t").appendChild(a);
+  if (!m.title){ // ancienne donnée sans fiche : on complète le titre et l'affiche depuis TMDB
+    a.textContent = "Chargement…";
+    getDetails(id).then(d => { if (!d) return; a.textContent = d.title || `Titre ${Math.abs(id)}`;
+      if (d.poster){ const mini = row.querySelector(".mini"); if (mini){ const i = document.createElement("img"); i.src = IMG(d.poster, "w185"); i.alt = "Affiche : " + (d.title||""); mini.replaceWith(i); } } });
+  }
   row.querySelector(".m").textContent = [isTv(id) ? "Série" : "", m.year, m.vote ? `★ ${(+m.vote).toFixed(1)}` : "", (m.genres||[]).join(", ")].filter(Boolean).join(" · ");
   return row;
 }
 
 function renderMatches(){
+  S.matchesDirty = false;
   const all = matchList();
   const order = { match:0, revoir:1, partial:2 };
   $("mcount").textContent = all.filter(x => x.kind !== "partial" && !S.watched.has(x.id)).length;
@@ -842,6 +864,7 @@ function sortMine(list){
 let randSeed = Math.random();
 function randRank(id){ let h = Math.floor(randSeed * 1e9) ^ id; h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^ (h >>> 16)) >>> 0; }
 function renderMine(){
+  S.mineDirty = false;
   const q = S.mineQuery.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   // filtres type + recherche, appliqués avant de compter : les compteurs suivent ce qui est affiché
   const pool = [...S.mine.entries()]
@@ -1075,8 +1098,17 @@ async function switchType(type){
   await refill(true).catch(reportError); renderAll();
 }
 
+// Les listes ne sont construites que si elles sont affichées ; sinon elles le seront à l'ouverture de l'onglet.
+function renderLists(){
+  if (S.view === "matches") renderMatches(); else { S.matchesDirty = true; updateMatchCount(); }
+  if (S.view === "mine") renderMine(); else S.mineDirty = true;
+}
+function updateMatchCount(){ $("mcount").textContent = matchList().filter(x => x.kind !== "partial" && !S.watched.has(x.id)).length; }
+// Pastilles des autres salons : un seul calcul même si plusieurs changements arrivent d'affilée
+let badgeTimer = 0;
+function scheduleBadges(){ clearTimeout(badgeTimer); badgeTimer = setTimeout(renderRoomBadges, 250); }
 function renderAll(){
-  renderPeople(); renderStage(); renderMatches(); renderMine(); renderRoomBadges();
+  renderPeople(); renderStage(); renderLists(); renderRoomBadges();
   const n = activeFilterCount(); $("fcount").hidden = !n; $("fcount").textContent = n;
 }
 
@@ -1086,6 +1118,8 @@ function setView(v){
     S.mineQuery = ""; $("mineSearch").value = ""; S.mineGenre = ""; $("surprise").hidden = true; renderMine();
   }
   S.view = v; document.querySelector(".app").dataset.view = v;
+  if (v === "matches" && S.matchesDirty) renderMatches();
+  if (v === "mine" && S.mineDirty) renderMine();
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
   // une barre qui était masquée n'a pas pu placer son curseur : on le recalcule (sans toucher aux onglets, pour garder leur animation)
@@ -1149,7 +1183,7 @@ async function act(kind){
     }
   } catch(err){ reportError(err); }
   finally { S.busy = false; }
-  renderStage(); renderMatches(); renderMine(); renderRoomBadges();
+  renderStage(); renderLists(); scheduleBadges();
   if (S.queue.length < 5) refill().then(renderStage).catch(reportError);
 }
 
@@ -1167,7 +1201,7 @@ async function setVerdict(id, verdict, movie){
   S.mine.set(id, { verdict, movie, at:new Date().toISOString() });
   const after = matchKind(id);
   if (after && after !== "partial" && after !== before) celebrate(id, after);
-  renderMine(); renderMatches(); renderRoomBadges();
+  renderLists(); scheduleBadges();
   try{ await saveVerdict(id, verdict, movie); }catch(err){ reportError(err); }
 }
 async function removeVerdict(id){
