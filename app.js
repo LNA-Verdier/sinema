@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011846";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011846";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011850";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011850";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -861,8 +861,9 @@ function renderMine(){
     gbox.appendChild(b);
   });
   requestAnimationFrame(genreEdges);
+  // compteurs : selon Tout / Films / Séries uniquement (la recherche ne les modifie pas)
   const counts = { like:0, nope:0, seen:0 };
-  pool.forEach(([, e]) => counts[e.verdict]++);
+  for (const [id, e] of S.mine) if (!S.mineType || (S.mineType === "tv") === isTv(id)) counts[e.verdict]++;
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
   const list = $("minelist"); list.innerHTML = "";
   const all = sortMine(tabPool.filter(([, e]) => !S.mineGenre || (e.movie?.genres||[]).includes(S.mineGenre)));
@@ -1078,6 +1079,10 @@ function renderAll(){
 }
 
 function setView(v){
+  // en quittant « Ma watchlist », la recherche, le genre choisi et la suggestion sont remis à zéro
+  if (S.view === "mine" && v !== "mine" && (S.mineQuery || S.mineGenre)){
+    S.mineQuery = ""; $("mineSearch").value = ""; S.mineGenre = ""; $("surprise").hidden = true; renderMine();
+  }
   S.view = v; document.querySelector(".app").dataset.view = v;
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
