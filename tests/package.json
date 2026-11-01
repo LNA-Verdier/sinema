@@ -1,0 +1,8 @@
+{
+  "name": "sinema-tests",
+  "private": true,
+  "type": "module",
+  "description": "Outils de test de Sinema (vérification des modules)",
+  "scripts": { "check": "node check-modules.mjs" },
+  "devDependencies": { "acorn": "8.14.0", "acorn-walk": "8.3.4", "globals": "15.14.0" }
+}
