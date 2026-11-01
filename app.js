@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011843";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011843";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011846";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011846";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -1082,7 +1082,7 @@ function setView(v){
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
   // une barre qui était masquée n'a pas pu placer son curseur : on le recalcule (sans toucher aux onglets, pour garder leur animation)
-  requestAnimationFrame(() => document.querySelectorAll(".seg:not(.tabs)").forEach(sg => segMove(sg, false)));
+  requestAnimationFrame(() => { document.querySelectorAll(".seg:not(.tabs)").forEach(sg => segMove(sg, false)); if (v === "mine") genreEdges(); });
 }
 
 // ================== Actions ==================
@@ -1408,6 +1408,8 @@ $("gNext").onclick = () => $("mineGenres").scrollBy({ left: $("mineGenres").clie
 // molette verticale = défilement horizontal au-dessus du bandeau
 $("mineGenres").addEventListener("wheel", e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ e.preventDefault(); $("mineGenres").scrollLeft += e.deltaY; } }, { passive:false });
 window.addEventListener("resize", () => genreEdges());
+// le bandeau est souvent rempli alors que l'onglet est masqué : on recalcule dès qu'il prend sa vraie taille
+if ("ResizeObserver" in window) new ResizeObserver(() => genreEdges()).observe($("mineGenres"));
 $("mineSort").value = S.mineSort;
 $("mineSort").addEventListener("change", e => { S.mineSort = e.target.value; LS.set("sinema-mine-sort", S.mineSort); if (S.mineSort === "random") randSeed = Math.random(); renderMine(); });
 // « Surprends-moi » : un titre tiré au hasard parmi ceux affichés, mis en avant en haut de la liste
