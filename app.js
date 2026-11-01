@@ -289,7 +289,7 @@ async function createRoom(roomName){
     return reportError(error);
   }
   sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
-  closeSheets();
+  clearRoomInputs(); closeSheets();
   await openRoom(await findRoom(r => r.code === code), { justCreated:true });
 }
 
@@ -304,6 +304,7 @@ async function joinRoom(raw){
     return reportError(error);
   }
   if (!roomId) return showNotice("Ce salon n'existe pas. Vérifie le code.");
+  clearRoomInputs();
   await sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
   closeSheets();
   await openRoom(await findRoom(r => r.id === roomId, { id:roomId, code, name:null }), { justJoined:true });
@@ -848,7 +849,9 @@ function celebrate(id, kind){
 }
 
 // ================== Feuilles : menu et filtres ==================
-function openMenu(){ renderMenu(); $("newRoomForm").hidden = true; $("joinRoomForm").hidden = true; $("menuSheet").hidden = false; }
+// Vide les champs de création / d'invitation (pour ne pas réutiliser un ancien code par erreur)
+function clearRoomInputs(){ ["codeInput","menuCode","newRoomName","menuRoomName"].forEach(id => $(id).value = ""); }
+function openMenu(){ clearRoomInputs(); renderMenu(); $("newRoomForm").hidden = true; $("joinRoomForm").hidden = true; $("menuSheet").hidden = false; }
 function openFilters(){ renderFilters(); $("filtersSheet").hidden = false; refreshSegs(); }
 function closeSheets(){ ["menuSheet","filtersSheet","profileSheet"].forEach(id => $(id).hidden = true); $("personList").hidden = true; }
 document.querySelectorAll(".overlay").forEach(o => {
