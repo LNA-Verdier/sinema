@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ciné à deux</title>
+<meta name="description" content="Swipez des films chacun de votre côté, vos envies communes deviennent votre liste à voir.">
+<meta name="theme-color" content="#12141C">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ciné à deux">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://image.tmdb.org">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">Ciné<span>·</span>à deux</div>
+    <div class="tabs" role="tablist" id="tabs" hidden>
+      <button class="tab" id="tab-swipe" role="tab" aria-selected="true">Swiper</button>
+      <button class="tab" id="tab-matches" role="tab" aria-selected="false">Nos films <span class="count" id="mcount">0</span></button>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <!-- Accueil : prénom + créer / rejoindre un salon -->
+  <section id="view-onboard" class="onboard" hidden>
+    <h1>Choisissez votre film<br>sans débat</h1>
+    <p class="lead">Chacun swipe de son côté. Quand vous avez tous les deux envie du même film, il rejoint votre liste.</p>
+    <form id="onboardForm" class="sheet">
+      <label for="nameInput">Ton prénom</label>
+      <input id="nameInput" maxlength="24" placeholder="Ton prénom" autocomplete="given-name" required>
+      <div id="joinBlock" hidden>
+        <p class="hint-text">Tu as été invité dans le salon <b id="joinCodeLabel"></b>.</p>
+        <button class="cta" type="submit" id="joinBtn">Rejoindre le salon</button>
+      </div>
+      <div id="createBlock">
+        <button class="cta" type="submit" id="createBtn">Créer notre salon</button>
+        <details class="join-code">
+          <summary>J'ai déjà un code</summary>
+          <div class="row-inline">
+            <input id="codeInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" autocomplete="off">
+            <button class="ghost" type="button" id="joinCodeBtn">Rejoindre</button>
+          </div>
+        </details>
+      </div>
+    </form>
+  </section>
+
+  <!-- Swipe -->
+  <section id="view-swipe" class="swipe" hidden>
+    <div class="status">
+      <div class="people" id="people"></div>
+      <div class="filters">
+        <select id="genre" aria-label="Filtrer par genre"><option value="">Tous les genres</option></select>
+        <button class="ghost small" id="shareBtn" type="button">Inviter</button>
+      </div>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="actions">
+      <button class="btn small" id="undo" title="Annuler le dernier swipe (Retour arrière)" aria-label="Annuler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="btn no" id="nope" title="Pas pour moi (←)" aria-label="Pas pour moi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button class="btn vu" id="vu" title="Déjà vu (↑)" aria-label="Déjà vu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="btn yes" id="like" title="Envie de le voir (→)" aria-label="Envie de le voir"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 5.3 3 1.7-1.9 3.2-3 5.3-3 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg></button>
+      <button class="btn small" id="skip" title="Plus tard (↓)" aria-label="Plus tard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="kbd">← Bof · ↑ Déjà vu · → Envie · ↓ Plus tard</div>
+  </section>
+
+  <!-- Liste commune -->
+  <section id="view-matches" class="list" hidden>
+    <div class="lhead"><h2>À voir ensemble</h2>
+      <label><input type="checkbox" id="hideSeen"> Masquer les films vus</label></div>
+    <div id="mlist" class="mlist"></div>
+  </section>
+
+  <footer class="tmdb">
+    <svg viewBox="0 0 64 20" aria-hidden="true"><rect width="64" height="20" rx="4" fill="#0d253f"/><text x="32" y="14" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="11" fill="#01b4e4">TMDB</text></svg>
+    <span>Données et affiches fournies par TMDB. Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.</span>
+  </footer>
+</div>
+
+<div class="overlay" id="shareSheet" hidden>
+  <div class="sheet">
+    <h3>Invite ta moitié</h3>
+    <p>Envoie-lui ce lien. Elle choisit son prénom et vous swipez dans le même salon.</p>
+    <div class="code" id="shareCode"></div>
+    <input id="shareLink" readonly>
+    <div class="row-inline">
+      <button class="cta" type="button" id="copyLink">Copier le lien</button>
+      <button class="ghost" type="button" id="closeShare">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="match" id="match" hidden><div class="box" id="matchBox">
+  <img id="matchPoster" alt="">
+  <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
+</div></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

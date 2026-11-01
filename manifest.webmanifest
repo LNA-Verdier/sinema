@@ -1,0 +1,15 @@
+{
+  "name": "Ciné à deux",
+  "short_name": "Ciné à deux",
+  "description": "Swipez des films à deux, vos envies communes deviennent votre liste à voir.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#12141C",
+  "theme_color": "#12141C",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
