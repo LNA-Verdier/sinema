@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011707b";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011707b";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011712";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011712";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -78,6 +78,8 @@ function getDetails(id){
     cast: (d.credits?.cast || []).slice(0,4).map(c => c.name),
     providers: ((d["watch/providers"]?.results?.FR?.flatrate) || []).slice(0,5).map(p=>({ name:p.provider_name, logo:p.logo_path })),
     watchLink: d["watch/providers"]?.results?.FR?.link || null,
+    // au moins une offre en France pour regarder chez soi (abonnement, gratuit, avec pub, location, achat)
+    hasHomeOffer: ["flatrate","free","ads","rent","buy"].some(k => (d["watch/providers"]?.results?.FR?.[k] || []).length > 0),
   })).catch(() => null));
   return details.get(id);
 }
@@ -586,7 +588,24 @@ async function fillDetails(el, m){
   link(tmdbPage(m.id), "Fiche TMDB ↗");                 // fiche complète : casting, bandes-annonces, avis
 }
 
+// En mode « Chez moi », on vérifie les prochaines cartes : un titre sans aucune offre en France
+// (encore en salle, à venir, ou glissé depuis les envies d'un autre membre) est retiré discrètement.
+let vetting = false;
+async function vetQueue(){
+  if (vetting || S.filters.avail !== "home") return;
+  vetting = true;
+  try{
+    let changed = false;
+    for (let i = 0; i < Math.min(4, S.queue.length); i++){
+      const m = S.queue[i], d = await getDetails(m.id);
+      if (S.filters.avail !== "home") break;
+      if (d && !d.hasHomeOffer && S.queue[i] === m){ S.queue.splice(i, 1); i--; changed = true; }
+    }
+    if (changed){ renderStage(); if (S.queue.length < 5) refill().then(() => { renderStage(); vetQueue(); }).catch(reportError); }
+  } finally { vetting = false; }
+}
 function renderStage(){
+  queueMicrotask(vetQueue);
   const st = $("stage"); st.innerHTML = "";
   const top3 = S.queue.slice(0,3);
   if (!top3.length){
