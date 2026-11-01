@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011856";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011856";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011859";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011859";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -1411,15 +1411,25 @@ function genreEdges(){
 $("mineGenres").addEventListener("scroll", genreEdges);
 // Défilement par pastilles entières : la pastille coupée d'un côté devient la première visible de l'autre
 const ARROW_ZONE = 0; // les flèches sont désormais à côté du bandeau, elles ne masquent plus rien
+// Défilement animé (même rendu sur tous les navigateurs), désactivé si l'utilisateur limite les animations
+let glideAnim = 0;
+function glide(el, delta, ms = 380){
+  const from = el.scrollLeft, to = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, from + delta));
+  cancelAnimationFrame(glideAnim);
+  if (reduceMotion() || Math.abs(to - from) < 2){ el.scrollLeft = to; return; }
+  const t0 = performance.now(), ease = t => 1 - Math.pow(1 - t, 3);
+  const step = now => { const t = Math.min(1, (now - t0) / ms); el.scrollLeft = from + (to - from) * ease(t); if (t < 1) glideAnim = requestAnimationFrame(step); };
+  glideAnim = requestAnimationFrame(step);
+}
 function genreStep(dir){
   const g = $("mineGenres"), box = g.getBoundingClientRect(), chips = [...g.querySelectorAll("button")];
   const left = box.left + ARROW_ZONE, right = box.right - ARROW_ZONE;
   if (dir > 0){
     const cut = chips.find(c => c.getBoundingClientRect().right > right + 1);
-    if (cut) g.scrollBy({ left: cut.getBoundingClientRect().left - left });
+    if (cut) glide(g, cut.getBoundingClientRect().left - left);
   } else {
     const cut = [...chips].reverse().find(c => c.getBoundingClientRect().left < left - 1);
-    if (cut) g.scrollBy({ left: cut.getBoundingClientRect().right - right });
+    if (cut) glide(g, cut.getBoundingClientRect().right - right);
   }
 }
 $("gPrev").onclick = () => genreStep(-1);
