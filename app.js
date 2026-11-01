@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011824";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011824";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011829";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011829";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -825,17 +825,22 @@ function renderMatches(){
   });
 }
 
+const MINE_PAGE = 20;
 function renderMine(){
+  const q = S.mineQuery.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // filtres type + recherche, appliqués avant de compter : les compteurs suivent ce qui est affiché
+  const pool = [...S.mine.entries()]
+    .filter(([id]) => !S.mineType || (S.mineType === "tv") === isTv(id))
+    .filter(([, e]) => !q || ((e.movie?.title||"") + " " + (e.movie?.genres||[]).join(" ") + " " + (e.movie?.year||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
   const counts = { like:0, nope:0, seen:0 };
-  for (const e of S.mine.values()) counts[e.verdict]++;
+  pool.forEach(([, e]) => counts[e.verdict]++);
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
   const list = $("minelist"); list.innerHTML = "";
-  const q = S.mineQuery.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const items = [...S.mine.entries()]
-    .filter(([id, e]) => e.verdict === S.mineTab)
-    .filter(([id]) => !S.mineType || (S.mineType === "tv") === isTv(id))
-    .filter(([, e]) => !q || ((e.movie?.title||"") + " " + (e.movie?.genres||[]).join(" ") + " " + (e.movie?.year||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q))
-    .sort((a,b) => (b[1].at||"").localeCompare(a[1].at||""));
+  const all = pool.filter(([, e]) => e.verdict === S.mineTab).sort((a,b) => (b[1].at||"").localeCompare(a[1].at||""));
+  // affichage par tranches de 20, avec « Afficher plus » (on repart de 20 quand l'onglet, le type ou la recherche changent)
+  const key = `${S.mineTab}|${S.mineType}|${q}`;
+  if (S.mineKey !== key){ S.mineKey = key; S.mineLimit = MINE_PAGE; }
+  const items = all.slice(0, S.mineLimit);
   if (!items.length){
     const e=document.createElement("div"); e.className="lempty";
     e.textContent = (q || S.mineType) ? "Aucun titre ne correspond à ta recherche."
@@ -857,6 +862,18 @@ function renderMine(){
     row.querySelector(".side").appendChild(v);
     list.appendChild(row);
   });
+  if (all.length > MINE_PAGE){
+    const foot = document.createElement("div"); foot.className = "morebar";
+    const info = document.createElement("span"); info.className = "fine"; info.textContent = `${items.length} sur ${all.length}`;
+    foot.appendChild(info);
+    if (items.length < all.length){
+      const more = document.createElement("button"); more.type = "button"; more.className = "ghost";
+      more.textContent = `Afficher ${Math.min(MINE_PAGE, all.length - items.length)} de plus`;
+      more.onclick = () => { S.mineLimit += MINE_PAGE; renderMine(); };
+      foot.appendChild(more);
+    }
+    list.appendChild(foot);
+  }
 }
 
 function renderMenu(){
