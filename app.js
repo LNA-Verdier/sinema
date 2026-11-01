@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011839";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011839";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011843";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011843";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -852,24 +852,15 @@ function renderMine(){
   const gcount = new Map(); tabPool.forEach(([, e]) => (e.movie?.genres||[]).forEach(g => gcount.set(g, (gcount.get(g)||0) + 1)));
   if (S.mineGenre && !gcount.has(S.mineGenre)) S.mineGenre = "";
   const gbox = $("mineGenres"); gbox.innerHTML = ""; gbox.hidden = gcount.size < 2;
-  gbox.classList.toggle("open", !!S.mineGenresOpen);
+  gbox.parentElement.hidden = gcount.size < 2;
   const sorted = [...gcount.entries()].sort((a,b) => b[1]-a[1]);
   sorted.forEach(([g, n], i) => {
     const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", S.mineGenre === g);
-    if (i >= 10 && S.mineGenre !== g) b.classList.add("extra");
     b.textContent = g; const c = document.createElement("span"); c.textContent = n; b.appendChild(c);
     b.onclick = () => { S.mineGenre = S.mineGenre === g ? "" : g; renderMine(); };
     gbox.appendChild(b);
   });
-  if (sorted.length > 10){
-    const m = document.createElement("button"); m.type = "button"; m.className = "moreg";
-    m.textContent = S.mineGenresOpen ? "Moins de genres" : `+ ${sorted.length - 10} genres`;
-    m.onclick = () => { S.mineGenresOpen = !S.mineGenresOpen; renderMine(); };
-    gbox.appendChild(m);
-  }
-  // fondu de droite retiré quand on arrive au bout du défilement (téléphone)
-  const edge = () => gbox.classList.toggle("end", gbox.scrollLeft + gbox.clientWidth >= gbox.scrollWidth - 4);
-  gbox.onscroll = edge; requestAnimationFrame(edge);
+  requestAnimationFrame(genreEdges);
   const counts = { like:0, nope:0, seen:0 };
   pool.forEach(([, e]) => counts[e.verdict]++);
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
@@ -1405,6 +1396,18 @@ $("like").onclick = () => act("like"); $("nope").onclick = () => act("nope"); $(
 $("undo").onclick = undo;
 $("hideSeen").onchange = renderMatches;
 $("mineSearch").addEventListener("input", e => { S.mineQuery = e.target.value; renderMine(); });
+// Bandeau de genres sur une ligne : fondus et flèches selon la position du défilement
+function genreEdges(){
+  const g = $("mineGenres"), start = g.scrollLeft <= 4, end = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
+  g.classList.toggle("start", start); g.classList.toggle("end", end);
+  $("gPrev").hidden = start; $("gNext").hidden = end;
+}
+$("mineGenres").addEventListener("scroll", genreEdges);
+$("gPrev").onclick = () => $("mineGenres").scrollBy({ left: -$("mineGenres").clientWidth * .7 });
+$("gNext").onclick = () => $("mineGenres").scrollBy({ left: $("mineGenres").clientWidth * .7 });
+// molette verticale = défilement horizontal au-dessus du bandeau
+$("mineGenres").addEventListener("wheel", e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ e.preventDefault(); $("mineGenres").scrollLeft += e.deltaY; } }, { passive:false });
+window.addEventListener("resize", () => genreEdges());
 $("mineSort").value = S.mineSort;
 $("mineSort").addEventListener("change", e => { S.mineSort = e.target.value; LS.set("sinema-mine-sort", S.mineSort); if (S.mineSort === "random") randSeed = Math.random(); renderMine(); });
 // « Surprends-moi » : un titre tiré au hasard parmi ceux affichés, mis en avant en haut de la liste
