@@ -92,7 +92,7 @@ begin
   return v_code;
 end $$;
 
--- Rejoindre un salon avec son code (ou mettre à jour son prénom si on y est déjà).
+-- Rejoindre un salon avec son code (ou mettre à jour son pseudo si on y est déjà).
 -- Renvoie null si le code est inconnu (sans lever d'erreur, pour que la tentative ratée soit bien enregistrée).
 create or replace function public.join_room(p_code text, p_name text)
 returns uuid language plpgsql security definer set search_path = public as $$

@@ -38,8 +38,8 @@
         <button type="button" role="tab" id="modeLogin" aria-selected="false">Se connecter</button>
       </div>
       <div id="signupOnly">
-        <label for="authName">Ton prénom</label>
-        <input id="authName" maxlength="24" placeholder="Ton prénom" autocomplete="given-name">
+        <label for="authName">Ton pseudo</label>
+        <input id="authName" maxlength="24" placeholder="Ton pseudo" autocomplete="nickname">
       </div>
       <label for="authEmail">E-mail</label>
       <input id="authEmail" type="email" placeholder="toi@exemple.fr" autocomplete="email" required>
@@ -68,13 +68,13 @@
     </form>
   </section>
 
-  <!-- Accueil : prénom + créer / rejoindre un salon -->
+  <!-- Accueil : pseudo + créer / rejoindre un salon -->
   <section id="view-onboard" class="onboard" hidden>
     <h1>Choisissez votre film<br>sans débat</h1>
     <p class="lead">Chacun swipe de son côté. Quand vous avez tous les deux envie du même film, il rejoint votre liste.</p>
     <form id="onboardForm" class="sheet">
-      <label for="nameInput">Ton prénom</label>
-      <input id="nameInput" maxlength="24" placeholder="Ton prénom" autocomplete="given-name" required>
+      <label for="nameInput">Ton pseudo</label>
+      <input id="nameInput" maxlength="24" placeholder="Ton pseudo" autocomplete="nickname" required>
       <div id="joinBlock" hidden>
         <p class="hint-text">Tu as été invité dans le salon <b id="joinCodeLabel"></b>.</p>
         <button class="cta" type="submit" id="joinBtn">Rejoindre le salon</button>

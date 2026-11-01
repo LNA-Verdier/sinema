@@ -131,7 +131,7 @@ $("authForm").onsubmit = async e => {
   const btn = $("authSubmit"); btn.disabled = true;
   try{
     if (authMode === "signup"){
-      if (!name){ showNotice("Indique ton prénom."); return; }
+      if (!name){ showNotice("Indique ton pseudo."); return; }
       if (!PASS_OK(password)){ showNotice("Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres."); return; }
       const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name }, emailRedirectTo: redirectHome() } });
       if (error) throw error;
