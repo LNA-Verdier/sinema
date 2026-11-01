@@ -92,6 +92,16 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .plist button[aria-selected="true"] .box::after{content:"";width:10px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
 .plist img{width:26px;height:26px;border-radius:6px;flex:none}
 .plist .sep{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 6px 2px}
+.sortbar{flex-wrap:nowrap}
+.sortbar .sortlab{font-size:13px;color:var(--muted);font-weight:600}
+.sortbar select{flex:1;min-width:0;padding:7px 10px;font-size:14px;max-width:none}
+.gchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;margin:0 -2px}
+.gchips::-webkit-scrollbar{display:none}
+.gchips button{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.gchips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.gchips button span{opacity:.6;font-weight:500;margin-left:4px}
+#surprise .row{border:2px solid var(--accent);animation:rise .35s var(--ease)}
+#surprise .lab{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--accent);margin:0 0 6px 2px}
 .morebar{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0 4px}
 .morebar .ghost{width:100%}
 .typeseg{flex:0 0 auto;width:min(190px,50vw)}

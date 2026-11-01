@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011829";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011829";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011836";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011836";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -113,7 +113,7 @@ function genreOptions(type){
   Object.entries(GENRES[type]).forEach(([id, label]) => { if (+id === ANIM) out.push(...ANIM_CATS); else out.push([id, label]); });
   return out;
 }
-const snapshot = m => ({ id:m.id, type:m.type, title:m.title, year:m.year, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
+const snapshot = m => ({ id:m.id, type:m.type, title:m.title, year:m.year, date:m.date, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
 function normalize(m, type){
   const tv = type === "tv";
   const date = (tv ? m.first_air_date : m.release_date) || "";
@@ -146,7 +146,7 @@ const S = {
   filtersBy: loadFilters(),
   get filters(){ return this.filtersBy[this.type]; },
   set filters(v){ this.filtersBy[this.type] = v; },
-  mineType:"", mineQuery:"",
+  mineType:"", mineQuery:"", mineGenre:"", mineSort: LS.get("sinema-mine-sort") || "added",
   queue:[], pending:[], pageOrder:null,
   platforms: (() => { try{ return JSON.parse(LS.get("sinema-platforms") || "[]"); }catch{ return []; } })(), pageIdx:0, totalPages:1, loading:false,
   history:[], busy:false, channel:null, view:"swipe", mineTab:"like",
@@ -178,7 +178,7 @@ async function boot(){
 function onSeg(id, btn){
   if (id === "tabs") setView(btn.dataset.view);
   else if (id === "authSeg") setAuthMode(btn.id === "modeLogin" ? "login" : "signup");
-  else if (id === "mineSeg"){ S.mineTab = btn.dataset.v; renderMine(); }
+  else if (id === "mineSeg"){ S.mineTab = btn.dataset.v; S.mineGenre = ""; $("surprise").hidden = true; renderMine(); }
   else if (id === "modeSeg") modeHelp();
   else if (id === "availSeg") availHelp();
   else if (id === "onboardSeg") showOb(btn.dataset.v);
@@ -791,7 +791,7 @@ function rowEl(m, id){
   const a = document.createElement("a"); a.href = tmdbPage(id); a.target = "_blank"; a.rel = "noopener"; a.className = "titlelink";
   a.textContent = m.title || `Titre ${Math.abs(id)}`; a.title = "Voir la fiche sur TMDB";
   row.querySelector(".t").appendChild(a);
-  row.querySelector(".m").textContent = [isTv(id) ? "Série" : "", m.year, (m.genres||[]).join(", ")].filter(Boolean).join(" · ");
+  row.querySelector(".m").textContent = [isTv(id) ? "Série" : "", m.year, m.vote ? `★ ${(+m.vote).toFixed(1)}` : "", (m.genres||[]).join(", ")].filter(Boolean).join(" · ");
   return row;
 }
 
@@ -826,21 +826,48 @@ function renderMatches(){
 }
 
 const MINE_PAGE = 20;
+// Tri de la watchlist. « Au hasard » garde le même ordre tant qu'on ne relance pas le tri.
+function sortMine(list){
+  const dateOf = e => e.movie?.date || (e.movie?.year ? `${e.movie.year}-01-01` : "");
+  const by = {
+    added:  (a,b) => (b[1].at||"").localeCompare(a[1].at||""),
+    rating: (a,b) => (b[1].movie?.vote||0) - (a[1].movie?.vote||0),
+    newest: (a,b) => dateOf(b[1]).localeCompare(dateOf(a[1])),
+    oldest: (a,b) => (dateOf(a[1]) || "9999").localeCompare(dateOf(b[1]) || "9999"),
+    title:  (a,b) => (a[1].movie?.title||"").localeCompare(b[1].movie?.title||"", "fr", { sensitivity:"base" }),
+    random: (a,b) => randRank(a[0]) - randRank(b[0]),
+  }[S.mineSort] || ((a,b) => 0);
+  return [...list].sort(by);
+}
+let randSeed = Math.random();
+function randRank(id){ let h = Math.floor(randSeed * 1e9) ^ id; h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^ (h >>> 16)) >>> 0; }
 function renderMine(){
   const q = S.mineQuery.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   // filtres type + recherche, appliqués avant de compter : les compteurs suivent ce qui est affiché
   const pool = [...S.mine.entries()]
     .filter(([id]) => !S.mineType || (S.mineType === "tv") === isTv(id))
     .filter(([, e]) => !q || ((e.movie?.title||"") + " " + (e.movie?.genres||[]).join(" ") + " " + (e.movie?.year||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q));
+  // pastilles de genres : ceux présents dans l'onglet courant (avec leur nombre)
+  const tabPool = pool.filter(([, e]) => e.verdict === S.mineTab);
+  const gcount = new Map(); tabPool.forEach(([, e]) => (e.movie?.genres||[]).forEach(g => gcount.set(g, (gcount.get(g)||0) + 1)));
+  if (S.mineGenre && !gcount.has(S.mineGenre)) S.mineGenre = "";
+  const gbox = $("mineGenres"); gbox.innerHTML = ""; gbox.hidden = gcount.size < 2;
+  [...gcount.entries()].sort((a,b) => b[1]-a[1]).forEach(([g, n]) => {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", S.mineGenre === g);
+    b.textContent = g; const c = document.createElement("span"); c.textContent = n; b.appendChild(c);
+    b.onclick = () => { S.mineGenre = S.mineGenre === g ? "" : g; renderMine(); };
+    gbox.appendChild(b);
+  });
   const counts = { like:0, nope:0, seen:0 };
   pool.forEach(([, e]) => counts[e.verdict]++);
   Object.entries(counts).forEach(([k,v]) => $("n-"+k).textContent = v);
   const list = $("minelist"); list.innerHTML = "";
-  const all = pool.filter(([, e]) => e.verdict === S.mineTab).sort((a,b) => (b[1].at||"").localeCompare(a[1].at||""));
+  const all = sortMine(tabPool.filter(([, e]) => !S.mineGenre || (e.movie?.genres||[]).includes(S.mineGenre)));
   // affichage par tranches de 20, avec « Afficher plus » (on repart de 20 quand l'onglet, le type ou la recherche changent)
-  const key = `${S.mineTab}|${S.mineType}|${q}`;
+  const key = `${S.mineTab}|${S.mineType}|${q}|${S.mineGenre}|${S.mineSort}`;
   if (S.mineKey !== key){ S.mineKey = key; S.mineLimit = MINE_PAGE; }
   const items = all.slice(0, S.mineLimit);
+  S.mineVisible = all.map(([id]) => id);
   if (!items.length){
     const e=document.createElement("div"); e.className="lempty";
     e.textContent = (q || S.mineType) ? "Aucun titre ne correspond à ta recherche."
@@ -1366,6 +1393,22 @@ $("like").onclick = () => act("like"); $("nope").onclick = () => act("nope"); $(
 $("undo").onclick = undo;
 $("hideSeen").onchange = renderMatches;
 $("mineSearch").addEventListener("input", e => { S.mineQuery = e.target.value; renderMine(); });
+$("mineSort").value = S.mineSort;
+$("mineSort").addEventListener("change", e => { S.mineSort = e.target.value; LS.set("sinema-mine-sort", S.mineSort); if (S.mineSort === "random") randSeed = Math.random(); renderMine(); });
+// « Surprends-moi » : un titre tiré au hasard parmi ceux affichés, mis en avant en haut de la liste
+$("surpriseBtn").onclick = () => {
+  const ids = [...$("minelist").querySelectorAll(".row")].length ? S.mineVisible || [] : [];
+  const box = $("surprise");
+  if (!ids.length){ box.hidden = true; return; }
+  const id = ids[Math.floor(Math.random() * ids.length)], e = S.mine.get(id);
+  box.innerHTML = `<p class="lab">Et pourquoi pas…</p>`;
+  const row = rowEl(e.movie || {}, id);
+  const close = document.createElement("button"); close.type = "button"; close.className = "iconbtn"; close.textContent = "✕"; close.setAttribute("aria-label","Fermer");
+  close.onclick = () => box.hidden = true;
+  row.querySelector(".side").appendChild(close);
+  getDetails(id).then(d => { if (!d) return; const pv = row.querySelector(".pv"); d.providers.forEach(p => { const i=document.createElement("img"); i.src=IMG(p.logo,"w92"); i.alt=p.name; i.title=p.name; pv.appendChild(i); }); });
+  box.appendChild(row); box.hidden = false;
+};
 document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || $("view-swipe").hidden || !$("menuSheet").hidden || !$("filtersSheet").hidden) return;
   if (e.key === "ArrowRight") act("like");
