@@ -25,6 +25,11 @@ create table if not exists public.members (
   primary key (room_id, user_id)
 );
 
+alter table public.members add column if not exists avatar jsonb;
+do $$ begin
+  alter table public.members add constraint members_avatar_size check (avatar is null or octet_length(avatar::text) <= 300);
+exception when duplicate_object then null; end $$;
+
 -- Choix d'une personne sur un film, valables dans tous ses salons.
 -- verdict : like (envie), nope (bof), seen (déjà vu).
 -- movie garde un instantané du film (titre, affiche, année…) pour afficher les listes sans rappeler TMDB.
@@ -159,6 +164,14 @@ begin
   update members set name = trim(p_name) where user_id = auth.uid();
 end $$;
 
+-- Mettre à jour son profil (pseudo et avatar) dans tous ses salons.
+create or replace function public.set_profile(p_name text, p_avatar jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not_signed_in'; end if;
+  update members set name = trim(p_name), avatar = p_avatar where user_id = auth.uid();
+end $$;
+
 -- Quitter un salon. Le salon est supprimé quand il n'y reste plus personne.
 create or replace function public.leave_room(p_room uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -168,9 +181,9 @@ begin
 end $$;
 
 revoke execute on function public.create_room(text, text), public.join_room(text, text), public.rename_room(uuid, text),
-  public.set_pseudo(text), public.leave_room(uuid) from public, anon;
+  public.set_pseudo(text), public.set_profile(text, jsonb), public.leave_room(uuid) from public, anon;
 grant execute on function public.create_room(text, text), public.join_room(text, text), public.rename_room(uuid, text),
-  public.set_pseudo(text), public.leave_room(uuid), public.is_member(uuid), public.shares_room(uuid) to authenticated;
+  public.set_pseudo(text), public.set_profile(text, jsonb), public.leave_room(uuid), public.is_member(uuid), public.shares_room(uuid) to authenticated;
 
 -- =====================================================================
 -- Règles d'accès (RLS)

@@ -162,12 +162,12 @@
         <input id="renameInput" maxlength="40" placeholder="Nom du salon" aria-label="Nom du salon">
         <button class="ghost" type="button" id="renameBtn">Renommer</button>
       </div>
-      <p class="fine">Invite d'autres personnes avec ce code ou ce lien (12 personnes maximum).</p>
-      <div class="code" id="shareCode"></div>
-      <div class="inlineform">
-        <input id="shareLink" readonly aria-label="Lien d'invitation">
-        <button class="cta" type="button" id="copyLink">Copier</button>
+      <p class="fine">Invite d'autres personnes avec le lien ou le code (12 personnes maximum). Ne les partage qu'avec des gens de confiance.</p>
+      <div class="codebox">
+        <span class="code" id="shareCode">••••••••</span>
+        <button class="ghost small" type="button" id="revealCode" aria-pressed="false">Afficher</button>
       </div>
+      <button class="cta" type="button" id="copyLink">Copier le lien d'invitation</button>
       <button class="linkbtn danger" type="button" id="leaveBtn">Quitter ce salon</button>
       <div class="confirm" id="leaveConfirm" hidden>
         <span>Quitter ce salon ? Tes choix restent dans ton compte.</span>
@@ -178,12 +178,53 @@
 
     <div class="section">
       <h4>Mon compte</h4>
-      <div class="inlineform">
-        <input id="pseudoInput" maxlength="24" placeholder="Ton pseudo" aria-label="Ton pseudo">
-        <button class="ghost" type="button" id="pseudoBtn">Changer</button>
-      </div>
-      <p class="fine">Connecté avec <b id="accountEmail"></b></p>
+      <button class="profilebtn" type="button" id="profileBtn">
+        <span id="profileAvatar"></span>
+        <span class="who"><b id="profileName"></b><span id="accountEmail"></span></span>
+        <span class="go">Modifier ›</span>
+      </button>
       <button class="ghost" type="button" id="logoutBtn">Se déconnecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profil -->
+<div class="overlay" id="profileSheet" hidden>
+  <div class="sheet drawer" role="dialog" aria-labelledby="profileTitle">
+    <div class="sheethead"><h3 id="profileTitle">Mon profil</h3><button class="iconbtn" type="button" data-close aria-label="Fermer">✕</button></div>
+
+    <div class="avatar-editor">
+      <div class="avatar-preview" id="avPreview"></div>
+      <label>Personnage</label>
+      <div class="avgrid" id="avBases"></div>
+      <label>Couleur de fond</label>
+      <div class="swatches" id="avColors"></div>
+      <div id="avSlots" class="stack"></div>
+    </div>
+
+    <label for="pseudoInput">Pseudo</label>
+    <input id="pseudoInput" maxlength="24" placeholder="Ton pseudo">
+    <button class="cta" type="button" id="saveProfile">Enregistrer le profil</button>
+
+    <div class="section">
+      <h4>Adresse e-mail</h4>
+      <p class="fine">Actuelle : <b id="profileEmail"></b></p>
+      <div class="inlineform">
+        <input id="newEmail" type="email" placeholder="Nouvelle adresse" autocomplete="email">
+        <button class="ghost" type="button" id="emailBtn">Changer</button>
+      </div>
+      <p class="fine">Un lien de confirmation sera envoyé. Le changement n'est effectif qu'après validation.</p>
+    </div>
+
+    <div class="section">
+      <h4>Mot de passe</h4>
+      <p class="fine">Pour ta sécurité, on t'envoie d'abord un code de vérification par e-mail.</p>
+      <button class="ghost" type="button" id="sendCodeBtn">Recevoir un code par e-mail</button>
+      <div class="stack" id="pwForm" hidden>
+        <input id="pwCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Code reçu par e-mail" maxlength="10">
+        <input id="pwNew" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (10 car. min, lettres et chiffres)">
+        <button class="cta" type="button" id="pwBtn">Changer le mot de passe</button>
+      </div>
     </div>
   </div>
 </div>
@@ -218,6 +259,12 @@
       <button type="button" role="tab" data-v="6" aria-selected="false">★ 6+</button>
       <button type="button" role="tab" data-v="7" aria-selected="false">★ 7+</button>
       <button type="button" role="tab" data-v="8" aria-selected="false">★ 8+</button>
+    </div>
+    <label for="fPerson">Réalisateur, acteur ou actrice</label>
+    <div class="personpick">
+      <div class="chosen" id="personChosen" hidden><span id="personLabel"></span><button class="iconbtn" type="button" id="personClear" aria-label="Retirer ce filtre">✕</button></div>
+      <input id="fPerson" placeholder="Ex. : Agnès Varda, Omar Sy…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="personList">
+      <div class="suggest" id="personList" role="listbox" hidden></div>
     </div>
     <label for="fCountry">Pays de production</label>
     <select id="fCountry">

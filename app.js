@@ -1,5 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -60,8 +61,10 @@ async function tmdb(path, params = {}){
 let GENRE_NAMES = {};
 const details = new Map();
 function getDetails(id){
-  if (!details.has(id)) details.set(id, tmdb(`/movie/${id}`, { append_to_response: "watch/providers" }).then(d => ({
+  if (!details.has(id)) details.set(id, tmdb(`/movie/${id}`, { append_to_response: "watch/providers,credits" }).then(d => ({
     runtime: d.runtime,
+    directors: (d.credits?.crew || []).filter(c => c.job === "Director").map(c => c.name).slice(0,2),
+    cast: (d.credits?.cast || []).slice(0,4).map(c => c.name),
     providers: ((d["watch/providers"]?.results?.FR?.flatrate) || []).slice(0,5).map(p=>({ name:p.provider_name, logo:p.logo_path })),
     link: d["watch/providers"]?.results?.FR?.link || `https://www.themoviedb.org/movie/${id}`,
   })).catch(() => null));
@@ -74,9 +77,10 @@ function normalize(m){
 }
 
 // ================== État ==================
-const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", country:"" };
+const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", country:"", person:null };
 const S = {
-  me:null, email:"", name:"",
+  me:null, email:"", name:"", avatar:null,
+  avatars:{},             // user_id -> avatar (salon courant)
   rooms:[],               // [{ id, code, name }]
   room:null,              // salon courant
   members:{},             // user_id -> pseudo (salon courant)
@@ -122,6 +126,7 @@ async function afterLogin(session){
   S.me = session.user.id;
   S.email = session.user.email || "";
   S.name = session.user.user_metadata?.name || LS.get("cad-name") || (S.email.split("@")[0]);
+  S.avatar = cleanAvatar(session.user.user_metadata?.avatar || avatarFor(S.me));
   const [g] = await Promise.all([ tmdb("/genre/movie/list"), loadMine(), loadRooms() ]);
   GENRE_NAMES = Object.fromEntries(g.genres.map(x=>[x.id,x.name]));
   const sel = $("fGenre"); sel.length = 1;
@@ -252,6 +257,7 @@ async function createRoom(roomName){
     if (/too_many_rooms/.test(error.message)) return showNotice("Tu as atteint la limite de 10 salons créés. Rejoins plutôt un salon existant avec son code.");
     return reportError(error);
   }
+  sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
   await loadRooms();
   closeSheets();
   await openRoom(S.rooms.find(r => r.code === code), { justCreated:true });
@@ -268,6 +274,7 @@ async function joinRoom(raw){
     return reportError(error);
   }
   if (!roomId) return showNotice("Ce salon n'existe pas. Vérifie le code.");
+  await sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
   await loadRooms();
   closeSheets();
   await openRoom(S.rooms.find(r => r.id === roomId), { justJoined:true });
@@ -294,11 +301,13 @@ async function openRoom(room, { justCreated=false, justJoined=false } = {}){
 
 async function loadRoom(){
   const [m, w] = await Promise.all([
-    sb.from("members").select("user_id,name").eq("room_id", S.room.id),
+    sb.from("members").select("user_id,name,avatar").eq("room_id", S.room.id),
     sb.from("watched").select("movie_id").eq("room_id", S.room.id),
   ]);
   for (const r of [m,w]) if (r.error) throw r.error;
   S.members = Object.fromEntries(m.data.map(x=>[x.user_id, x.name]));
+  S.avatars = Object.fromEntries(m.data.map(x=>[x.user_id, cleanAvatar(x.avatar || avatarFor(x.user_id))]));
+  S.avatars[S.me] = S.avatar;
   S.watched = new Set(w.data.map(x=>x.movie_id));
   const others = Object.keys(S.members).filter(u => u !== S.me);
   S.theirs = new Map(others.map(u => [u, new Map()]));
@@ -386,6 +395,7 @@ function filterOk(m){
   if (f.genre && !(m.genres||[]).includes(GENRE_NAMES[f.genre])) return false;
   if (f.period){ const [a,b] = f.period.split("-"); const y = +m.year; if (!y || (a && y < +a) || (b && y > +b)) return false; }
   if (f.rating && (m.vote||0) < +f.rating) return false;
+  if (f.person) return false; // le casting n'est pas connu dans l'instantané : seuls les films trouvés par TMDB passent
   return true; // le pays n'est pas connu dans l'instantané : on n'exclut pas
 }
 function discoverParams(page){
@@ -397,6 +407,7 @@ function discoverParams(page){
   if (f.rating && f.mode !== "gems") p["vote_average.gte"] = f.rating;
   if (f.genre) p.with_genres = f.genre;
   if (f.country) p.with_origin_country = f.country;
+  if (f.person) p.with_people = String(f.person.id);
   if (f.period){
     const [a,b] = f.period.split("-");
     if (a) p["primary_release_date.gte"] = `${a}-01-01`;
@@ -449,6 +460,7 @@ function cardEl(m, cls){
       <div class="genres"></div>
       <h2></h2>
       <div class="meta"><span class="year"></span><span class="rating"></span><span class="dur"></span></div>
+      <p class="credits"></p>
       <p class="overview"></p>
       <button class="more" type="button" hidden>Voir plus</button>
       <div class="providers"></div>
@@ -476,6 +488,11 @@ async function fillDetails(el, m){
   const d = await getDetails(m.id);
   if (!d || !el.isConnected) return;
   el.querySelector(".dur").textContent = fmtMins(d.runtime);
+  const cr = el.querySelector(".credits"); cr.textContent = "";
+  const addPart = (label, names) => { if (!names.length) return; if (cr.childNodes.length) cr.append(" · "); cr.append(label + " "); const b=document.createElement("b"); b.textContent = names.join(", "); cr.append(b); };
+  addPart("De", d.directors); addPart("Avec", d.cast);
+  const more = el.querySelector(".more"), ov = el.querySelector(".overview");
+  requestAnimationFrame(() => { more.hidden = ov.scrollHeight <= ov.clientHeight + 2 && cr.scrollWidth <= cr.clientWidth + 2; });
   const pv = el.querySelector(".providers"); pv.innerHTML = "";
   if (d.providers.length) d.providers.forEach(p => { const i=document.createElement("img"); i.src=IMG(p.logo,"w92"); i.alt=p.name; i.title=p.name; pv.appendChild(i); });
   else { const s=document.createElement("span"); s.className="none"; s.textContent="Pas en streaming par abonnement en France"; pv.appendChild(s); }
@@ -511,8 +528,7 @@ function renderPeople(){
   ids.slice(0,5).forEach((u, i) => {
     const c = document.createElement("span"); c.className = "chip";
     const n = (u === S.me ? S.name : nameOf(u)) || "?";
-    c.innerHTML = `<i></i><b></b>`;
-    c.querySelector("i").textContent = n.slice(0,1).toUpperCase(); c.querySelector("i").style.background = COLORS[i % COLORS.length];
+    c.innerHTML = avatarSVG(S.avatars[u] || avatarFor(u), 22, n) + `<b></b>`;
     c.querySelector("b").textContent = u === S.me ? `${n} (toi)` : n;
     p.appendChild(c);
   });
@@ -601,10 +617,10 @@ function renderMenu(){
   $("currentRoom").hidden = !S.room;
   if (S.room){
     $("renameInput").value = S.room.name || "";
-    $("shareCode").textContent = S.room.code;
-    $("shareLink").value = `${HOME}?salon=${S.room.code}`;
+    $("shareCode").textContent = "••••••••"; $("revealCode").textContent = "Afficher"; $("revealCode").setAttribute("aria-pressed","false");
   }
-  $("pseudoInput").value = S.name; $("accountEmail").textContent = S.email;
+  $("profileAvatar").innerHTML = avatarSVG(S.avatar, 44, S.name);
+  $("profileName").textContent = S.name; $("accountEmail").textContent = S.email;
   $("leaveConfirm").hidden = true;
 }
 
@@ -613,6 +629,7 @@ function renderFilters(){
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
   $("fGenre").value = f.genre; $("fPeriod").value = f.period; $("fCountry").value = f.country;
+  draftPerson = f.person; renderPerson();
   modeHelp();
 }
 function modeHelp(){
@@ -620,7 +637,7 @@ function modeHelp(){
     mix:"Un tirage au hasard parmi des milliers de films, connus ou non.",
     gems:"Des films très bien notés mais peu vus : de quoi faire des découvertes." }[segValue($("modeSeg"))];
 }
-function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","country"].filter(k => f[k]).length + (f.mode !== "top" ? 1 : 0); }
+function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","country","person"].filter(k => f[k]).length + (f.mode !== "top" ? 1 : 0); }
 
 function renderAll(){
   renderPeople(); renderStage(); renderMatches(); renderMine();
@@ -631,7 +648,7 @@ function setView(v){
   S.view = v;
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
-  if (v === "mine") refreshSegs();
+  if (v === "mine") requestAnimationFrame(() => segMove($("mineSeg"), false));
 }
 
 // ================== Actions ==================
@@ -749,7 +766,7 @@ function celebrate(id, kind){
 // ================== Feuilles : menu et filtres ==================
 function openMenu(){ renderMenu(); $("newRoomForm").hidden = true; $("joinRoomForm").hidden = true; $("menuSheet").hidden = false; }
 function openFilters(){ renderFilters(); $("filtersSheet").hidden = false; refreshSegs(); }
-function closeSheets(){ $("menuSheet").hidden = true; $("filtersSheet").hidden = true; }
+function closeSheets(){ ["menuSheet","filtersSheet","profileSheet"].forEach(id => $(id).hidden = true); $("personList").hidden = true; }
 document.querySelectorAll(".overlay").forEach(o => {
   o.addEventListener("click", e => { if (e.target === o || e.target.closest("[data-close]")) closeSheets(); });
 });
@@ -763,18 +780,16 @@ $("renameBtn").onclick = async () => {
   if (error) return reportError(error);
   S.room.name = name || null; $("roomName").textContent = roomLabel(S.room); renderMenu();
 };
-$("pseudoBtn").onclick = async () => {
-  const name = $("pseudoInput").value.trim(); if (!name) return;
-  const [{ error }] = await Promise.all([ sb.rpc("set_pseudo", { p_name:name }), sb.auth.updateUser({ data:{ name } }) ]);
-  if (error) return reportError(error);
-  S.name = name; LS.set("cad-name", name); S.members[S.me] = name; renderPeople(); $("pseudoBtn").textContent = "Changé ✓";
-  setTimeout(() => $("pseudoBtn").textContent = "Changer", 1500);
+$("revealCode").onclick = () => {
+  const show = $("revealCode").getAttribute("aria-pressed") !== "true";
+  $("revealCode").setAttribute("aria-pressed", show); $("revealCode").textContent = show ? "Masquer" : "Afficher";
+  $("shareCode").textContent = show ? S.room.code : "••••••••";
 };
 $("copyLink").onclick = async () => {
-  const link = $("shareLink").value;
+  const link = `${HOME}?salon=${S.room.code}`;
   if (navigator.share){ try{ await navigator.share({ title:"Sinema", text:`Rejoins le salon « ${roomLabel(S.room)} » sur Sinema`, url:link }); return; }catch{} }
-  try{ await navigator.clipboard.writeText(link); $("copyLink").textContent = "Copié ✓"; setTimeout(() => $("copyLink").textContent = "Copier", 1500); }
-  catch{ $("shareLink").select(); }
+  try{ await navigator.clipboard.writeText(link); $("copyLink").textContent = "Lien copié ✓"; setTimeout(() => $("copyLink").textContent = "Copier le lien d'invitation", 1500); }
+  catch{ showNotice("Copie impossible ici. Voici le lien : " + link); }
 };
 $("leaveBtn").onclick = () => $("leaveConfirm").hidden = false;
 $("leaveNo").onclick = () => $("leaveConfirm").hidden = true;
@@ -787,12 +802,140 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), country:$("fCountry").value };
+  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), country:$("fCountry").value, person:draftPerson };
   LS.set("sinema-filters", JSON.stringify(S.filters));
   closeSheets(); setView("swipe");
   S.loading = false; await refill(true).catch(reportError); renderAll();
 };
 $("resetFilters").onclick = () => { S.filters = { ...DEFAULT_FILTERS }; renderFilters(); };
+
+// ---------- Filtre par réalisateur / acteur ----------
+let draftPerson = null, personTimer = null, personReq = 0;
+const DEPT = { Acting:"Acteur·rice", Directing:"Réalisation", Writing:"Scénario", Production:"Production" };
+function renderPerson(){
+  $("personChosen").hidden = !draftPerson; $("fPerson").hidden = !!draftPerson;
+  if (draftPerson) $("personLabel").textContent = `${draftPerson.name}${draftPerson.dept ? " · " + draftPerson.dept : ""}`;
+  $("fPerson").value = ""; $("personList").hidden = true; $("fPerson").setAttribute("aria-expanded","false");
+}
+$("personClear").onclick = () => { draftPerson = null; renderPerson(); $("fPerson").focus(); };
+$("fPerson").addEventListener("input", () => {
+  clearTimeout(personTimer);
+  const q = $("fPerson").value.trim();
+  if (q.length < 2){ $("personList").hidden = true; return; }
+  personTimer = setTimeout(async () => {
+    const my = ++personReq;
+    try{
+      const d = await tmdb("/search/person", { query:q, include_adult:"false" });
+      if (my !== personReq) return;
+      const list = $("personList"); list.innerHTML = "";
+      const people = d.results.filter(p => p.known_for_department === "Acting" || p.known_for_department === "Directing").slice(0,6);
+      if (!people.length){ list.innerHTML = `<div class="fine" style="padding:10px">Personne trouvé.</div>`; }
+      people.forEach(p => {
+        const b = document.createElement("button"); b.type = "button"; b.setAttribute("role","option");
+        b.innerHTML = (p.profile_path ? `<img alt="">` : `<span class="ph"></span>`) + `<span class="s-info"><b></b><small></small></span>`;
+        if (p.profile_path) b.querySelector("img").src = IMG(p.profile_path, "w92");
+        b.querySelector("b").textContent = p.name;
+        const known = (p.known_for || []).map(k => k.title || k.name).filter(Boolean).slice(0,2).join(", ");
+        b.querySelector("small").textContent = [DEPT[p.known_for_department] || "", known].filter(Boolean).join(" · ");
+        b.onclick = () => { draftPerson = { id:p.id, name:p.name, dept:DEPT[p.known_for_department] || "" }; renderPerson(); };
+        list.appendChild(b);
+      });
+      list.hidden = false; $("fPerson").setAttribute("aria-expanded","true");
+    }catch(err){ reportError(err); }
+  }, 250);
+});
+$("fPerson").addEventListener("keydown", e => {
+  const opts = [...$("personList").querySelectorAll("button")]; if (!opts.length || $("personList").hidden) return;
+  let i = opts.findIndex(o => o.getAttribute("aria-selected") === "true");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp"){ e.preventDefault(); i = e.key === "ArrowDown" ? Math.min(opts.length-1, i+1) : Math.max(0, i-1); opts.forEach((o,k) => o.setAttribute("aria-selected", k===i)); opts[i].scrollIntoView({ block:"nearest" }); }
+  else if (e.key === "Enter" && i >= 0){ e.preventDefault(); opts[i].click(); }
+  else if (e.key === "Escape") $("personList").hidden = true;
+});
+
+// ---------- Profil ----------
+let draftAv = null;
+function openProfile(){
+  draftAv = { ...S.avatar };
+  $("pseudoInput").value = S.name; $("profileEmail").textContent = S.email; $("newEmail").value = "";
+  $("pwForm").hidden = true; $("pwCode").value = ""; $("pwNew").value = "";
+  $("menuSheet").hidden = true; $("profileSheet").hidden = false;
+  renderAvatarEditor();
+}
+function renderAvatarEditor(){
+  $("avPreview").innerHTML = avatarSVG(draftAv, 104, "Aperçu de ton avatar");
+  const grid = $("avBases"); grid.innerHTML = "";
+  BASES.forEach(b => {
+    const btn = document.createElement("button"); btn.type="button"; btn.title=b.label; btn.setAttribute("aria-label", b.label);
+    btn.setAttribute("aria-pressed", draftAv.b === b.id);
+    btn.innerHTML = avatarSVG({ ...draftAv, b:b.id, head:"none", eyes:"none", face:"none", neck:"none" }, 52, b.label);
+    btn.onclick = () => { draftAv.b = b.id; renderAvatarEditor(); };
+    grid.appendChild(btn);
+  });
+  const sw = $("avColors"); sw.innerHTML = "";
+  AV_COLORS.forEach((c, i) => {
+    const btn = document.createElement("button"); btn.type="button"; btn.style.background = c; btn.setAttribute("aria-label", `Couleur ${i+1}`);
+    btn.setAttribute("aria-pressed", draftAv.c === i); btn.onclick = () => { draftAv.c = i; renderAvatarEditor(); };
+    sw.appendChild(btn);
+  });
+  const slots = $("avSlots"); slots.innerHTML = "";
+  SLOTS.forEach(slot => {
+    const wrap = document.createElement("div"); wrap.className = "stack"; wrap.style.gap = "6px";
+    const lab = document.createElement("label"); lab.textContent = slot.label; wrap.appendChild(lab);
+    const row = document.createElement("div"); row.className = "opts";
+    Object.entries(slot.items).forEach(([key, item]) => {
+      const btn = document.createElement("button"); btn.type="button";
+      const label = item ? item.label : "Aucun";
+      btn.title = label; btn.setAttribute("aria-label", label); btn.setAttribute("aria-pressed", draftAv[slot.key] === key);
+      btn.innerHTML = avatarSVG({ ...draftAv, [slot.key]:key }, 40, label);
+      btn.onclick = () => { draftAv[slot.key] = key; renderAvatarEditor(); };
+      row.appendChild(btn);
+    });
+    wrap.appendChild(row); slots.appendChild(wrap);
+  });
+}
+$("profileBtn").onclick = openProfile;
+$("saveProfile").onclick = async () => {
+  const name = $("pseudoInput").value.trim();
+  if (!name) return showNotice("Indique un pseudo.");
+  const avatar = cleanAvatar(draftAv), btn = $("saveProfile"); btn.disabled = true;
+  try{
+    const [{ error:e1 }, { error:e2 }] = await Promise.all([
+      sb.rpc("set_profile", { p_name:name, p_avatar:avatar }),
+      sb.auth.updateUser({ data:{ name, avatar } }),
+    ]);
+    if (e1 || e2) throw (e1 || e2);
+    S.name = name; S.avatar = avatar; LS.set("cad-name", name);
+    S.members[S.me] = name; S.avatars[S.me] = avatar;
+    renderPeople(); btn.textContent = "Profil enregistré ✓";
+    setTimeout(() => btn.textContent = "Enregistrer le profil", 1600);
+  }catch(err){ reportError(err); }
+  finally{ btn.disabled = false; }
+};
+$("emailBtn").onclick = async () => {
+  const email = $("newEmail").value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return showNotice("Cette adresse e-mail n'est pas valide.");
+  if (email.toLowerCase() === S.email.toLowerCase()) return showNotice("C'est déjà ton adresse actuelle.");
+  const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: HOME });
+  if (error) return showNotice(authMessage(error));
+  closeSheets();
+  showNotice(`Un lien de confirmation a été envoyé à ${email} (et peut-être aussi à ton adresse actuelle). Le changement sera effectif une fois le lien validé.`);
+};
+$("sendCodeBtn").onclick = async () => {
+  const btn = $("sendCodeBtn"); btn.disabled = true;
+  const { error } = await sb.auth.reauthenticate();
+  btn.disabled = false;
+  if (error) return showNotice(authMessage(error));
+  $("pwForm").hidden = false; btn.textContent = "Renvoyer un code"; $("pwCode").focus();
+  showNotice(`Code envoyé à ${S.email}. Il est valable quelques minutes.`);
+};
+$("pwBtn").onclick = async () => {
+  const nonce = $("pwCode").value.trim(), password = $("pwNew").value;
+  if (!nonce) return showNotice("Saisis le code reçu par e-mail.");
+  if (!PASS_OK(password)) return showNotice("Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres.");
+  const { error } = await sb.auth.updateUser({ password, nonce });
+  if (error) return showNotice(/nonce|otp|expired|invalid/i.test(error.message) ? "Code incorrect ou expiré. Demande un nouveau code." : authMessage(error));
+  closeSheets(); showNotice("Mot de passe modifié.");
+};
 
 // ================== Événements ==================
 $("like").onclick = () => act("like"); $("nope").onclick = () => act("nope"); $("vu").onclick = () => act("vu"); $("skip").onclick = () => act("skip");
