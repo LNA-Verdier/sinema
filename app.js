@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011714c";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011714c";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011723";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011723";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -70,7 +70,7 @@ const tmdbPage = id => `https://www.themoviedb.org/${tmdbPath(id)}`;
 const GENRES = { movie:{}, tv:{} };
 const details = new Map();
 function getDetails(id){
-  if (!details.has(id)) details.set(id, tmdb(`/${tmdbPath(id)}`, { append_to_response: "watch/providers,credits" }).then(d => ({
+  if (!details.has(id)) details.set(id, tmdb(`/${tmdbPath(id)}`, { append_to_response: isTv(id) ? "watch/providers,credits" : "watch/providers,credits,release_dates" }).then(d => ({
     runtime: isTv(id) ? (d.episode_run_time || [])[0] : d.runtime,
     seasons: d.number_of_seasons,
     directorLabel: isTv(id) ? "Créée par" : "De",
@@ -80,6 +80,11 @@ function getDetails(id){
     watchLink: d["watch/providers"]?.results?.FR?.link || null,
     // au moins une offre en France pour regarder chez soi (abonnement, gratuit, avec pub, location, achat)
     hasHomeOffer: ["flatrate","free","ads","rent","buy"].some(k => (d["watch/providers"]?.results?.FR?.[k] || []).length > 0),
+    // plateformes d'abonnement / gratuites où le titre est inclus (pour « Mes plateformes »)
+    subProviderIds: ["flatrate","free","ads"].flatMap(k => (d["watch/providers"]?.results?.FR?.[k] || []).map(p => p.provider_id)),
+    // dernière sortie en salle en France (types TMDB 2 = limitée, 3 = salles)
+    frTheatrical: ((d.release_dates?.results || []).find(r => r.iso_3166_1 === "FR")?.release_dates || [])
+      .filter(r => r.type === 2 || r.type === 3).map(r => r.release_date?.slice(0,10)).filter(Boolean).sort().at(-1) || null,
   })).catch(() => null));
   return details.get(id);
 }
@@ -92,11 +97,11 @@ function normalize(m, type){
 const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
 
 // ================== État ==================
-const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", countries:[], person:null, avail:"home" };
+const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", countries:[], person:null, avail:"home", strict:false };
 function loadFilters(){
   let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
   const fix = f => { const x = { ...DEFAULT_FILTERS, ...(f||{}) }; if (!Array.isArray(x.countries)) x.countries = []; if (x.country){ x.countries = [x.country]; } delete x.country;
-    x.avail = { cinema:"cinema", all:"all" }[x.avail] || "home"; return x; };
+    if (x.avail !== "cinema") x.avail = "home"; x.strict = !!x.strict; return x; };
   const r = { movie:fix(all.movie), tv:fix(all.tv) }; r.tv.person = null; return r;
 }
 const S = {
@@ -113,7 +118,8 @@ const S = {
   get filters(){ return this.filtersBy[this.type]; },
   set filters(v){ this.filtersBy[this.type] = v; },
   mineType:"", mineQuery:"",
-  queue:[], pending:[], pageOrder:null, pageIdx:0, totalPages:1, loading:false,
+  queue:[], pending:[], pageOrder:null,
+  platforms: (() => { try{ return JSON.parse(LS.get("sinema-platforms") || "[]"); }catch{ return []; } })(), pageIdx:0, totalPages:1, loading:false,
   history:[], busy:false, channel:null, view:"swipe", mineTab:"like",
 };
 let sb;
@@ -157,6 +163,7 @@ async function afterLogin(session){
   S.email = session.user.email || "";
   S.name = session.user.user_metadata?.name || LS.get("cad-name") || (S.email.split("@")[0]);
   S.avatar = cleanAvatar(session.user.user_metadata?.avatar || avatarFor(S.me));
+  if (Array.isArray(session.user.user_metadata?.platforms)) S.platforms = session.user.user_metadata.platforms.filter(Number.isInteger);
   const [gm, gt] = await Promise.all([ tmdb("/genre/movie/list"), tmdb("/genre/tv/list"), loadMine(), loadRooms() ]);
   GENRES.movie = Object.fromEntries(gm.genres.map(x=>[x.id,x.name]));
   GENRES.tv = Object.fromEntries(gt.genres.map(x=>[x.id,x.name]));
@@ -473,14 +480,16 @@ function discoverParams(page){
     p["release_date.gte"] = isoDay(from); p["release_date.lte"] = isoDay(now);
     p["vote_count.gte"] = "0"; delete p["vote_count.lte"];
     if (f.mode !== "gems") p.sort_by = "popularity.desc";
-  } else if (f.avail === "all"){
-    // tout le catalogue déjà sorti (les titres à venir sont exclus)
-    p[`${dateKey}.lte`] = p[`${dateKey}.lte`] && p[`${dateKey}.lte`] < isoDay(new Date()) ? p[`${dateKey}.lte`] : isoDay(new Date());
   } else {
-    // « Chez moi » : disponible en France en streaming (abonnement, gratuit, avec pub) ou en VOD (location, achat).
-    // Un titre à venir ou encore en salle n'a pas d'offre, il est donc naturellement exclu.
-    p.watch_region = "FR";
-    p.with_watch_monetization_types = "flatrate|free|ads|rent|buy";
+    // « Chez moi » : tout ce qui est déjà sorti. Les films encore en salle en France sont écartés carte par carte (voir vetQueue).
+    const today = isoDay(new Date());
+    if (!p[`${dateKey}.lte`] || p[`${dateKey}.lte`] > today) p[`${dateKey}.lte`] = today;
+    if (f.strict){
+      // option stricte : seulement ce qui se regarde tout de suite en France
+      p.watch_region = "FR";
+      if (S.platforms.length){ p.with_watch_providers = S.platforms.join("|"); p.with_watch_monetization_types = "flatrate|free|ads"; }
+      else p.with_watch_monetization_types = "flatrate|free|ads|rent|buy";
+    }
   }
   return p;
 }
@@ -588,8 +597,25 @@ async function fillDetails(el, m){
   link(tmdbPage(m.id), "Fiche TMDB ↗");                 // fiche complète : casting, bandes-annonces, avis
 }
 
-// En mode « Chez moi », on vérifie les prochaines cartes : un titre sans aucune offre en France
-// (encore en salle, à venir, ou glissé depuis les envies d'un autre membre) est retiré discrètement.
+// En mode « Chez moi », on vérifie les prochaines cartes et on retire discrètement :
+// - un film sorti en salle en France il y a moins de 4 mois (ou bientôt) et sans offre de VOD : il est encore au cinéma
+//   (4 mois = délai minimum avant la VOD dans la chronologie des médias française) ;
+// - avec l'option stricte, tout titre sans offre en France (ou absent de mes plateformes si j'en ai choisi).
+// Les films jamais sortis en salle en France restent dans la pile.
+const CINEMA_WINDOW_DAYS = 120;
+function keepAtHome(d){
+  if (!d) return true;
+  const f = S.filters;
+  if (f.strict){
+    if (S.platforms.length) return d.subProviderIds.some(id => S.platforms.includes(id));
+    return d.hasHomeOffer;
+  }
+  if (d.frTheatrical && !d.hasHomeOffer){
+    const days = (Date.now() - Date.parse(d.frTheatrical)) / 864e5;
+    if (days < CINEMA_WINDOW_DAYS) return false; // en salle en ce moment, ou sortie à venir en France
+  }
+  return true;
+}
 let vetting = false;
 async function vetQueue(){
   if (vetting || S.filters.avail !== "home") return;
@@ -599,7 +625,7 @@ async function vetQueue(){
     for (let i = 0; i < Math.min(4, S.queue.length); i++){
       const m = S.queue[i], d = await getDetails(m.id);
       if (S.filters.avail !== "home") break;
-      if (d && !d.hasHomeOffer && S.queue[i] === m){ S.queue.splice(i, 1); i--; changed = true; }
+      if (!keepAtHome(d) && S.queue[i] === m){ S.queue.splice(i, 1); i--; changed = true; }
     }
     if (changed){
       renderStage();
@@ -751,7 +777,8 @@ function renderFilters(){
   $("periodLabel").textContent = tv ? "Première diffusion" : "Année de sortie";
   $("availCinema").hidden = tv;
   segSelectBy($("availSeg"), b => b.dataset.v === (tv && f.avail === "cinema" ? "home" : f.avail));
-  availHelp();
+  $("fStrict").checked = !!f.strict; draftPlatforms = [...S.platforms];
+  availHelp(); renderPlatforms();
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
   $("fGenre").value = f.genre; setYears(f.period);
@@ -791,12 +818,39 @@ $("yearMax").addEventListener("input", () => { if (+$("yearMax").value < +$("yea
 (() => { const t = $("yearTicks"); [YEAR_MIN, 1950, 1980, 2000, YEAR_MAX].forEach(y => { const s = document.createElement("span"); s.textContent = y; s.style.left = ((y - YEAR_MIN) / (YEAR_MAX - YEAR_MIN) * 100) + "%"; t.appendChild(s); }); })();
 
 function availHelp(){
-  const w = S.type === "tv" ? "séries" : "films";
-  $("availHelp").textContent = { home:`Les ${w} que tu peux regarder en France en streaming ou en VOD (location, achat).`,
-    cinema:"Les films sortis en salle en France ces 6 dernières semaines. Les films pas encore sortis n'apparaissent pas.",
-    all:`Tous les ${w} déjà sortis, même s'ils ne sont disponibles nulle part pour l'instant.` }[segValue($("availSeg"))];
+  const w = S.type === "tv" ? "séries" : "films", v = segValue($("availSeg"));
+  $("availHelp").textContent = v === "cinema"
+    ? "Les films sortis en salle en France ces 6 dernières semaines. Les films pas encore sortis n'apparaissent pas."
+    : S.type === "tv" ? `Toutes les ${w} déjà diffusées.` : `Tous les ${w} déjà sortis, sauf ceux encore à l'affiche en France.`;
+  $("strictBlock").hidden = v === "cinema";
+  $("platformBlock").hidden = v === "cinema" || !$("fStrict").checked;
 }
-function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","person"].filter(k => f[k]).length + (f.avail !== "home" ? 1 : 0) + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
+// ---------- Mes plateformes ----------
+let draftPlatforms = [], PROVIDERS = null;
+async function renderPlatforms(){
+  const box = $("fPlatforms");
+  if (!PROVIDERS){
+    box.innerHTML = `<span class="fine">Chargement…</span>`;
+    try{
+      const [a, b] = await Promise.all([ tmdb("/watch/providers/movie", { watch_region:"FR" }), tmdb("/watch/providers/tv", { watch_region:"FR" }) ]);
+      const all = new Map();
+      [...a.results, ...b.results].forEach(p => { if (!all.has(p.provider_id)) all.set(p.provider_id, p); });
+      PROVIDERS = [...all.values()].sort((x, y) => (x.display_priorities?.FR ?? x.display_priority ?? 99) - (y.display_priorities?.FR ?? y.display_priority ?? 99)).slice(0, 18);
+    }catch(err){ box.innerHTML = `<span class="fine">Impossible de charger les plateformes.</span>`; return; }
+  }
+  box.innerHTML = "";
+  PROVIDERS.forEach(p => {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", draftPlatforms.includes(p.provider_id));
+    b.innerHTML = `<img alt="">`; b.querySelector("img").src = IMG(p.logo_path, "w92");
+    b.append(p.provider_name);
+    b.onclick = () => { const on = draftPlatforms.includes(p.provider_id);
+      draftPlatforms = on ? draftPlatforms.filter(x => x !== p.provider_id) : [...draftPlatforms, p.provider_id];
+      b.setAttribute("aria-pressed", !on); };
+    box.appendChild(b);
+  });
+}
+$("fStrict").addEventListener("change", availHelp);
+function activeFilterCount(){ const f=S.filters; return ["genre","period","rating","person","strict"].filter(k => f[k]).length + (f.avail !== "home" ? 1 : 0) + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
 $("fCountries").addEventListener("click", e => { const b = e.target.closest("button"); if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); });
 const saveFilters = () => LS.set("sinema-filters2", JSON.stringify(S.filtersBy));
 async function switchType(type){
@@ -973,8 +1027,12 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:getYears(), rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home" };
+  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:getYears(), rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home", strict:$("fStrict").checked };
   saveFilters();
+  if (JSON.stringify(draftPlatforms) !== JSON.stringify(S.platforms)){
+    S.platforms = draftPlatforms; LS.set("sinema-platforms", JSON.stringify(S.platforms));
+    sb.auth.updateUser({ data:{ platforms:S.platforms } }).catch(() => {});
+  }
   closeSheets(); setView("swipe");
   S.loading = false; await refill(true).catch(reportError); renderAll();
 };

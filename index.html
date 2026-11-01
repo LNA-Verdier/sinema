@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=202611011714c">
+<link rel="stylesheet" href="style.css?v=202611011723">
 </head>
 <body>
 <div class="app">
@@ -276,9 +276,16 @@
     <div class="seg" role="tablist" id="availSeg">
       <button type="button" role="tab" data-v="home" aria-selected="true">Chez moi</button>
       <button type="button" role="tab" data-v="cinema" aria-selected="false" id="availCinema">Au cinéma</button>
-      <button type="button" role="tab" data-v="all" aria-selected="false">Tout</button>
     </div>
     <p class="fine" id="availHelp"></p>
+    <div id="strictBlock" class="stack">
+      <label class="switch"><input type="checkbox" id="fStrict"><span class="sw" aria-hidden="true"></span>
+        <span>Seulement ce que je peux regarder tout de suite<small>en streaming ou en VOD en France</small></span></label>
+      <div id="platformBlock" class="stack">
+        <label>Mes plateformes <span class="fine">(facultatif : si tu en choisis, seuls leurs catalogues sont proposés)</span></label>
+        <div class="chips logos" id="fPlatforms"></div>
+      </div>
+    </div>
     <div class="yearhead"><label id="periodLabel">Année de sortie</label><span class="yearval" id="yearVal"></span></div>
     <div class="range2" id="yearRange">
       <div class="track"><div class="fill" id="yearFill"></div></div>
@@ -334,6 +341,6 @@
   <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
 </div></div>
 
-<script type="module" src="app.js?v=202611011714c"></script>
+<script type="module" src="app.js?v=202611011723"></script>
 </body>
 </html>
