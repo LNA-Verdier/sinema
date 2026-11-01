@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011901";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011901";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011924";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011924";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -220,7 +220,7 @@ async function loadRooms(){
   if (error) throw error;
   S.rooms = data.map(r => r.rooms).filter(Boolean);
 }
-const roomLabel = r => r?.name || `Salon ${r?.code || ""}`;
+const roomLabel = r => r?.name || "Salon sans nom"; // jamais le code d'invitation, qui doit rester discret
 
 // ================== Compte ==================
 const redirectHome = () => { const c = LS.get("cad-invite"); return c ? `${HOME}?salon=${c}` : HOME; };
@@ -915,7 +915,9 @@ function renderMenu(){
     b.innerHTML = `<b></b><span></span>`;
     b.querySelector("b").textContent = roomLabel(r);
     const fresh = S.room && r.id === S.room.id ? 0 : newMatches(r.id).length;
-    b.querySelector("span").textContent = S.room && r.id === S.room.id ? "actuel" : r.code;
+    // pas de code d'invitation ici (il reste masqué dans « Salon actuel ») : on affiche le nombre de membres
+    const nm = S.roomMembers?.get(r.id)?.length || 0;
+    b.querySelector("span").textContent = S.room && r.id === S.room.id ? "actuel" : nm ? `${nm} membre${nm>1?"s":""}` : "";
     if (fresh){ const c = document.createElement("i"); c.className = "count"; c.textContent = `${fresh} nouveau${fresh>1?"x":""} match${fresh>1?"s":""}`; b.querySelector("b").after(c); }
     b.onclick = async () => { if (S.room?.id === r.id) return closeSheets(); closeSheets(); try{ await openRoom(r); }catch(err){ reportError(err); } };
     list.appendChild(b);
