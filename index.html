@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=202611011755">
+<link rel="stylesheet" href="style.css?v=202611011758">
 </head>
 <body>
 <div class="app">
@@ -29,7 +29,7 @@
   <div class="seg tabs" id="tabs" role="tablist" hidden>
     <button type="button" role="tab" id="tab-swipe" data-view="swipe" aria-selected="true">Swiper</button>
     <button type="button" role="tab" id="tab-matches" data-view="matches" aria-selected="false">Nos films <span class="count" id="mcount">0</span></button>
-    <button type="button" role="tab" id="tab-mine" data-view="mine" aria-selected="false">Mes choix</button>
+    <button type="button" role="tab" id="tab-mine" data-view="mine" aria-selected="false">Ma watchlist</button>
   </div>
 
   <div class="notice" id="notice" hidden></div>
@@ -135,16 +135,16 @@
     <div id="mlist" class="mlist"></div>
   </section>
 
-  <!-- Mes choix (tous salons confondus) -->
+  <!-- Ma watchlist : mes choix, tous salons confondus -->
   <section id="view-mine" class="list" hidden>
-    <div class="lhead"><h2>Mes choix</h2><span class="fine">Valables dans tous tes salons</span></div>
+    <div class="lhead"><h2>Ma watchlist</h2><span class="fine">Valables dans tous tes salons</span></div>
     <div class="seg" role="tablist" id="mineSeg">
       <button type="button" role="tab" data-v="like" aria-selected="true">Envies <span class="n" id="n-like">0</span></button>
       <button type="button" role="tab" data-v="nope" aria-selected="false">Bof <span class="n" id="n-nope">0</span></button>
       <button type="button" role="tab" data-v="seen" aria-selected="false">Déjà vus <span class="n" id="n-seen">0</span></button>
     </div>
     <div class="listtools">
-      <input id="mineSearch" type="search" placeholder="Rechercher un titre, un genre, une année…" aria-label="Rechercher dans mes choix">
+      <input id="mineSearch" type="search" placeholder="Rechercher un titre, un genre, une année…" aria-label="Rechercher dans ma watchlist">
       <div class="seg" role="tablist" id="mineTypeSeg" aria-label="Type">
         <button type="button" role="tab" data-v="" aria-selected="true">Tout</button>
         <button type="button" role="tab" data-v="movie" aria-selected="false">Films</button>
@@ -337,6 +337,6 @@
   <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
 </div></div>
 
-<script type="module" src="app.js?v=202611011755"></script>
+<script type="module" src="app.js?v=202611011758"></script>
 </body>
 </html>

@@ -10,12 +10,12 @@ Choisir un film sans débat : chacun swipe de son côté, et quand tout le salon
 - Plusieurs salons par personne (couple, amis, coloc…), nommés, jusqu'à 12 membres, rejoints avec un lien ou un code à 8 caractères
 - Les choix sont liés à la personne et valent dans tous ses salons : en rejoignant un salon, les films en commun apparaissent immédiatement
 - Salons de 3 personnes ou plus : « match » quand tout le monde a envie, et « x/n envies » dès que 2 personnes ont envie
-- Onglet « Mes choix » pour revoir et modifier ses envies, bofs et déjà vus
+- Onglet « Ma watchlist » pour revoir et modifier ses envies, bofs et déjà vus
 - Filtres : mode Populaires / Mélange / Pépites, genre, période, note minimale, pays de production, réalisateur ou acteur (avec suggestions)
 - Films et séries (bascule en haut de l'écran de swipe, filtres mémorisés séparément)
 - Où regarder : « Chez moi » (tout ce qui est sorti, sauf les films encore à l'affiche en France) ou « Au cinéma », avec une option stricte « disponible tout de suite » et le choix de ses plateformes
 - Réalisation et casting affichés sur chaque carte, avec un lien « Où le voir » et un lien vers la fiche TMDB
-- Recherche et filtre Films / Séries dans « Mes choix »
+- Recherche et filtre Films / Séries dans « Ma watchlist »
 - Profil : pseudo, avatar personnalisable (10 personnages, 10 couleurs, accessoires), changement d'e-mail (lien de confirmation) et de mot de passe (code envoyé par e-mail)
 
 ## Stack
