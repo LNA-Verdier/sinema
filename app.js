@@ -430,7 +430,7 @@ $("shareBtn").onclick = openShare;
 $("closeShare").onclick = () => $("shareSheet").hidden = true;
 $("copyLink").onclick = async () => {
   const link = $("shareLink").value;
-  if (navigator.share){ try{ await navigator.share({ title:"Ciné à deux", text:"Viens swiper des films avec moi", url:link }); return; }catch{} }
+  if (navigator.share){ try{ await navigator.share({ title:"Sinema", text:"Viens swiper des films avec moi", url:link }); return; }catch{} }
   try{ await navigator.clipboard.writeText(link); $("copyLink").textContent = "Lien copié"; }
   catch{ $("shareLink").select(); }
 };

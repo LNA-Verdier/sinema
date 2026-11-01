@@ -1,4 +1,4 @@
-# Ciné à deux
+# Sinema
 
 Choisir un film à deux sans débat : chacun swipe de son côté, et quand vous avez tous les deux envie du même film, il rejoint votre liste commune.
 

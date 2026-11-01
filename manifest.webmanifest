@@ -1,6 +1,6 @@
 {
-  "name": "Ciné à deux",
-  "short_name": "Ciné à deux",
+  "name": "Sinema",
+  "short_name": "Sinema",
   "description": "Swipez des films à deux, vos envies communes deviennent votre liste à voir.",
   "start_url": "./",
   "display": "standalone",

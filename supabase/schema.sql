@@ -1,4 +1,4 @@
--- Ciné à deux : schéma Supabase
+-- Sinema : schéma Supabase
 -- À exécuter une fois dans Supabase → SQL Editor → New query → Run.
 -- Prérequis : Authentication → Sign In / Providers → "Allow anonymous sign-ins" activé.
 
