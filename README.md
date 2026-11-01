@@ -6,7 +6,7 @@ Choisir un film à deux sans débat : chacun swipe de son côté, et quand vous 
 - **Match** : envie des deux côtés. **Match à revoir** : l'un a envie, l'autre l'a déjà vu.
 - Affiches, résumés et plateformes de streaming en France via TMDB
 - Synchronisation en temps réel via Supabase, sans création de compte (connexion anonyme)
-- Un salon par couple, rejoint avec un lien ou un code à 6 caractères
+- Un salon par couple, rejoint avec un lien ou un code à 8 caractères
 
 ## Stack
 
@@ -25,6 +25,7 @@ Pour tester en local : `python3 -m http.server 8000` puis ouvrir http://localhos
 
 - La clé Supabase `anon` est publique par conception. Les règles RLS de `schema.sql` limitent chaque personne aux salons dont elle est membre, et chacun ne peut modifier que ses propres swipes.
 - Le jeton TMDB est visible dans le code du site. Acceptable pour un usage personnel non commercial. Pour une ouverture au public, le faire passer par une fonction serveur (Supabase Edge Function).
+- Limites anti-abus (modifiables dans `sinema_limits()`) : 3 salons créés par personne, 4 membres par salon, 8 codes erronés par quart d'heure.
 - La connexion anonyme est liée au navigateur : vider les données du site fait perdre son identité dans le salon.
 
 Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.

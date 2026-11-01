@@ -90,6 +90,7 @@ function onboard(code){
       if (code) await enterRoom(code);
       else {
         const { data, error } = await sb.rpc("create_room", { p_name: S.name });
+        if (error && /too_many_rooms/.test(error.message)){ showNotice("Tu as atteint la limite de 3 salons créés. Rejoins plutôt un salon existant avec son code."); return; }
         if (error) throw error;
         await enterRoom(data, true);
       }
@@ -97,7 +98,7 @@ function onboard(code){
   };
   $("joinCodeBtn").onclick = async () => {
     const c = $("codeInput").value.trim().toUpperCase();
-    if (c.length !== 6){ showNotice("Le code fait 6 caractères."); return; }
+    if (c.length !== 6 && c.length !== 8){ showNotice("Le code fait 8 caractères."); return; }
     if (!name()) return;
     try{ await enterRoom(c); } catch(err){ reportError(err); }
   };
@@ -106,9 +107,11 @@ function onboard(code){
 async function enterRoom(code, justCreated = false){
   const { data:roomId, error } = await sb.rpc("join_room", { p_code: code, p_name: S.name });
   if (error){
-    if (/room_not_found/.test(error.message)){ LS.set("cad-room",""); showNotice("Ce salon n'existe pas. Vérifie le code ou crée un nouveau salon."); onboard(null); return; }
+    if (/too_many_attempts/.test(error.message)){ showNotice("Trop de codes erronés. Réessaie dans un quart d'heure."); onboard(null); return; }
+    if (/room_full/.test(error.message)){ showNotice("Ce salon est complet. Crée ton propre salon pour swiper avec quelqu'un d'autre."); onboard(null); return; }
     throw error;
   }
+  if (!roomId){ LS.set("cad-room",""); showNotice("Ce salon n'existe pas. Vérifie le code ou crée un nouveau salon."); onboard(null); return; }
   S.roomId = roomId; S.roomCode = code; LS.set("cad-room", code);
   history.replaceState(null, "", "#"+code);
   showNotice("");
