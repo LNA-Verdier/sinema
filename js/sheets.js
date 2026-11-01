@@ -1,10 +1,10 @@
 // Sinema · sheets.js — Feuilles : menu des salons, filtres (années, plateformes, pays, genres, personne) et profil (avatar, e-mail, mot de passe).
-import { avatarSVG, BASES, COLORS as AV_COLORS, SLOTS, cleanAvatar } from "./avatars.js?v=202611011848";
-import { $, DEFAULT_FILTERS, HOME, IMG, LS, S, genreOptions, refreshSegs, reportError, sb, segSelectBy, segValue, showNotice, tmdb } from "./core.js?v=202611011848";
-import { PASS_OK, authMessage, logout } from "./auth.js?v=202611011848";
-import { loadRooms, newMatches, onboard, openRoom, roomLabel } from "./rooms.js?v=202611011848";
-import { refill, renderPeople } from "./deck.js?v=202611011848";
-import { renderAll, saveFilters, setView } from "./main.js?v=202611011848";
+import { avatarSVG, BASES, COLORS as AV_COLORS, SLOTS, cleanAvatar } from "./avatars.js?v=202611011900";
+import { $, DEFAULT_FILTERS, HOME, IMG, LS, S, genreOptions, refreshSegs, reportError, sb, segSelectBy, segValue, showNotice, tmdb } from "./core.js?v=202611011900";
+import { PASS_OK, authMessage, logout } from "./auth.js?v=202611011900";
+import { loadRooms, newMatches, onboard, openRoom, roomLabel } from "./rooms.js?v=202611011900";
+import { refill, renderPeople } from "./deck.js?v=202611011900";
+import { renderAll, saveFilters, setView } from "./main.js?v=202611011900";
 
 function renderMenu(){
   const list = $("roomList"); list.innerHTML = "";

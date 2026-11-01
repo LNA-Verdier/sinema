@@ -1,6 +1,6 @@
 // Sinema · auth.js — Compte : inscription, connexion, mot de passe oublié, déconnexion.
-import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011848";
-import { afterLogin } from "./main.js?v=202611011848";
+import { $, HOME, LS, refreshSegs, sb, segSelectBy, showNotice } from "./core.js?v=202611011900";
+import { afterLogin } from "./main.js?v=202611011900";
 
 
 // ================== Compte ==================
@@ -77,6 +77,9 @@ $("resetForm").onsubmit = async e => {
 };
 async function logout(){
   await sb.auth.signOut();
+  // rien ne reste de la personne sur l'appareil : données gardées pour le mode hors connexion, choix en attente
+  try{ await caches.delete("sinema-data"); }catch{}
+  LS.set("sinema-outbox","");
   LS.set("cad-room",""); location.href = HOME;
 }
 

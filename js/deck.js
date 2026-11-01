@@ -1,10 +1,10 @@
 // Sinema · deck.js — Pile de cartes : filtres TMDB, remplissage, tri chez moi / au cinéma, rendu des cartes et actions (swipe, annuler, vu).
-import { avatarSVG, avatarFor } from "./avatars.js?v=202611011848";
-import { $, ANIM, FAMILY, GENRES, IMG, S, fmtMins, genreMatch, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, reportError, sb, snapshot, tmdb, tmdbPage, typeOf } from "./core.js?v=202611011848";
-import { matchKind, movieOf, nameOf, openRoom, others, renderRoomBadges, roomLabel } from "./rooms.js?v=202611011848";
-import { renderMatches, renderMine } from "./lists.js?v=202611011848";
-import { openMenu } from "./sheets.js?v=202611011848";
-import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011848";
+import { avatarSVG, avatarFor } from "./avatars.js?v=202611011900";
+import { $, LS, isOffline, showOffline, ANIM, FAMILY, GENRES, IMG, S, fmtMins, genreMatch, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, reportError, sb, snapshot, tmdb, tmdbPage, typeOf } from "./core.js?v=202611011900";
+import { matchKind, movieOf, nameOf, openRoom, others, renderRoomBadges, roomLabel } from "./rooms.js?v=202611011900";
+import { renderMatches, renderMine } from "./lists.js?v=202611011900";
+import { openMenu } from "./sheets.js?v=202611011900";
+import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011900";
 
 // ================== Filtres et pile de films ==================
 function filterOk(m){
@@ -308,9 +308,28 @@ function flyOut(kind){
   return new Promise(r => setTimeout(r, reduceMotion() ? 0 : 260));
 }
 
+// Hors connexion, les choix attendent dans une boîte d'envoi (sur l'appareil) et partent au retour du réseau.
+const OUTBOX = "sinema-outbox";
+const netError = error => isOffline() || /Failed to fetch|NetworkError|Load failed|network/i.test(error?.message || "");
+function outbox(){ try{ const o = JSON.parse(LS.get(OUTBOX) || "{}"); return o && o.me === S.me ? o.rows : {}; }catch{ return {}; } }
+function setOutbox(rows){ LS.set(OUTBOX, Object.keys(rows).length ? JSON.stringify({ me:S.me, rows }) : ""); }
 async function saveVerdict(id, verdict, movie){
-  const { error } = await sb.from("user_swipes").upsert({ user_id:S.me, movie_id:id, verdict, movie, updated_at:new Date().toISOString() });
-  if (error) throw error;
+  const row = { user_id:S.me, movie_id:id, verdict, movie, updated_at:new Date().toISOString() };
+  const { error } = await sb.from("user_swipes").upsert(row);
+  if (!error) return;
+  if (!netError(error)) throw error;
+  setOutbox({ ...outbox(), [id]: row });
+  showOffline();
+}
+const pendingRows = () => Object.values(outbox());
+// à la connexion et au retour du réseau
+async function flushOutbox(){
+  const rows = Object.values(outbox());
+  if (!rows.length) return 0;
+  const { error } = await sb.from("user_swipes").upsert(rows);
+  if (error){ if (netError(error)) return 0; throw error; }
+  setOutbox({});
+  return rows.length;
 }
 
 const VERDICT = { like:"like", nope:"nope", vu:"seen" };
@@ -398,4 +417,4 @@ $("match").onclick = async () => {
   else setView("matches");
 };
 
-export { act, celebrate, filterOk, refill, removeVerdict, renderPeople, renderStage, setVerdict, toast, toggleWatched, undo };
+export { flushOutbox, pendingRows, OUTBOX, act, celebrate, filterOk, refill, removeVerdict, renderPeople, renderStage, setVerdict, toast, toggleWatched, undo };

@@ -1,18 +1,18 @@
 // Sinema · main.js — Point d'entrée : démarrage, après connexion, changement d'onglet et de type, rendu global, raccourcis clavier.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011848";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js?v=202611011900";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011848";
-import { $, GENRES, LS, S, reportError, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011848";
-import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011848";
-import { loadMine, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011848";
-import { act, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011848";
-import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011848";
-import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011848";
+import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011900";
+import { $, GENRES, LS, OFFLINE_TEXT, S, isOffline, reportError, showOffline, sb, segInit, setSb, segMove, segSelectBy, showNotice, tmdb } from "./core.js?v=202611011900";
+import { setAuthMode, showAuth, showReset } from "./auth.js?v=202611011900";
+import { loadMine, loadRoom, loadRooms, matchList, onboard, openRoom, renderRoomBadges, showOb, subscribeMine } from "./rooms.js?v=202611011900";
+import { act, flushOutbox, pendingRows, refill, renderPeople, renderStage, undo } from "./deck.js?v=202611011900";
+import { genreEdges, renderMatches, renderMine } from "./lists.js?v=202611011900";
+import { activeFilterCount, availHelp, modeHelp } from "./sheets.js?v=202611011900";
 
 // ================== Démarrage ==================
 async function boot(){
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !TMDB_TOKEN){
-    showNotice("Configuration incomplète : renseigne SUPABASE_URL, SUPABASE_ANON_KEY et TMDB_TOKEN dans config.js.");
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY){
+    showNotice("Configuration incomplète : renseigne SUPABASE_URL et SUPABASE_ANON_KEY dans config.js.");
     return;
   }
   ["tabs","authSeg","mineSeg","modeSeg","rateSeg","typeSeg","mineTypeSeg","availSeg","onboardSeg"].forEach(id => segInit($(id), b => onSeg(id, b)));
@@ -49,7 +49,9 @@ async function afterLogin(session){
   S.name = session.user.user_metadata?.name || LS.get("cad-name") || (S.email.split("@")[0]);
   S.avatar = cleanAvatar(session.user.user_metadata?.avatar || avatarFor(S.me));
   if (Array.isArray(session.user.user_metadata?.platforms)) S.platforms = session.user.user_metadata.platforms.filter(Number.isInteger);
+  await flushOutbox().catch(reportError); // choix faits hors connexion lors d'une visite précédente
   const [gm, gt] = await Promise.all([ tmdb("/genre/movie/list"), tmdb("/genre/tv/list"), loadMine(), loadRooms() ]);
+  pendingRows().forEach(r => S.mine.set(r.movie_id, { verdict:r.verdict, movie:r.movie, at:r.updated_at })); // encore hors connexion
   GENRES.movie = Object.fromEntries(gm.genres.map(x=>[x.id,x.name]));
   GENRES.tv = Object.fromEntries(gt.genres.map(x=>[x.id,x.name]));
   subscribeMine();
@@ -117,6 +119,25 @@ document.addEventListener("keydown", e => {
   else if (e.key === "Backspace") undo();
 });
 
+// ---------- Hors connexion ----------
+window.addEventListener("offline", showOffline);
+window.addEventListener("online", async () => {
+  if ($("notice").textContent === OFFLINE_TEXT) showNotice("");
+  if (!S.me) return;
+  try{
+    const sent = await flushOutbox();
+    await Promise.all([loadMine(), S.room ? loadRoom() : null]);
+    pendingRows().forEach(r => S.mine.set(r.movie_id, { verdict:r.verdict, movie:r.movie, at:r.updated_at }));
+    renderAll();
+    if (S.queue.length < 5) refill().then(renderStage).catch(reportError);
+    if (sent) console.info(`${sent} choix envoyés au retour du réseau`);
+  }catch(err){ reportError(err); }
+});
+// le service worker garde le site et les affiches pour les visites sans réseau
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(err => console.warn("Service worker non installé", err)));
+
 boot().catch(reportError);
+if (isOffline()) showOffline();
 
 export { afterLogin, renderAll, renderLists, saveFilters, scheduleBadges, setView };

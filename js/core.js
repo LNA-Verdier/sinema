@@ -1,5 +1,5 @@
 // Sinema · core.js — Socle partagé : utilitaires, barres de choix, accès TMDB, genres, état de l'application (S) et client Supabase.
-import { TMDB_TOKEN } from "../config.js?v=202611011848";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011900";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -20,9 +20,13 @@ const ICON = {
   trash:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>`,
 };
 
+// bandeau « hors connexion » (retiré au retour du réseau par main.js)
+const OFFLINE_TEXT = "Hors connexion : tu peux consulter tes listes et swiper les cartes déjà chargées. Tout sera envoyé au retour du réseau.";
+function showOffline(){ showNotice(OFFLINE_TEXT); }
 function showNotice(t){ const n=$("notice"); n.textContent=t||""; n.hidden=!t; }
 function reportError(err){
   console.error(err);
+  if (isOffline()) return showOffline();
   showNotice("Oups, une erreur est survenue : « "+((err && err.message) || err)+" ». Recharge la page, et si ça persiste envoie ce message à Claude.");
 }
 // « Script error. » sans détail vient d'un script externe à la page (extension, bloqueur, navigateur intégré) :
@@ -59,12 +63,52 @@ window.addEventListener("resize", () => allSegs().forEach(s => segMove(s, false)
 const refreshSegs = () => requestAnimationFrame(() => allSegs().forEach(s => segMove(s, false)));
 
 // ================== TMDB ==================
+// Les appels passent par le relais Supabase (fonction « tmdb », voir supabase/functions/tmdb) qui garde le jeton secret.
+// Si un TMDB_TOKEN est renseigné dans config.js, on appelle TMDB directement (ancien mode, ou tests en local).
+const TMDB_RELAY = `${SUPABASE_URL}/functions/v1/tmdb`;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isOffline = () => navigator.onLine === false;
+// au plus 6 appels TMDB en même temps, pour ne pas déclencher la limite de débit
+const TMDB_PARALLEL = 6;
+let tmdbActive = 0;
+const tmdbWaiting = [];
+const tmdbSlot = () => tmdbActive < TMDB_PARALLEL ? (tmdbActive++, Promise.resolve()) : new Promise(r => tmdbWaiting.push(r));
+const tmdbFree = () => { const next = tmdbWaiting.shift(); if (next) next(); else tmdbActive--; };
+
+async function tmdbFetch(path, qs){
+  if (TMDB_TOKEN) return fetch(`https://api.themoviedb.org/3${path}?${qs}`, { headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" } });
+  const { data:{ session } } = await sb.auth.getSession();
+  if (!session) throw new Error("Session expirée : reconnecte-toi");
+  return fetch(`${TMDB_RELAY}?p=${encodeURIComponent(path)}&${qs}`, { headers: { Authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_ANON_KEY } });
+}
 async function tmdb(path, params = {}){
   const qs = new URLSearchParams({ language: "fr-FR", ...params });
-  const r = await fetch(`https://api.themoviedb.org/3${path}?${qs}`, { headers: { Authorization: `Bearer ${TMDB_TOKEN}`, accept: "application/json" } });
-  if (r.status === 401) throw new Error("Jeton TMDB refusé : vérifie TMDB_TOKEN dans config.js");
-  if (!r.ok) throw new Error(`TMDB a répondu ${r.status}`);
-  return r.json();
+  await tmdbSlot();
+  try{
+    for (let attempt = 0; ; attempt++){
+      let r;
+      try{ r = await tmdbFetch(path, qs); }
+      catch(err){
+        if (/Session/.test(err.message)) throw err;
+        if (isOffline()) throw new Error("Pas de connexion internet");
+        if (attempt < 2){ await sleep(700 * (attempt + 1)); continue; }
+        throw new Error("TMDB est injoignable pour le moment");
+      }
+      // trop de requêtes, ou TMDB momentanément indisponible : on patiente puis on réessaie
+      if ((r.status === 429 || r.status === 503 || r.status === 504) && attempt < 3){
+        const wait = +r.headers.get("retry-after");
+        await sleep(wait > 0 ? Math.min(wait, 10) * 1000 : 600 * 2 ** attempt + Math.random() * 400);
+        continue;
+      }
+      if (r.ok) return r.json();
+      if (r.status === 429) throw new Error("TMDB reçoit trop de demandes, réessaie dans une minute");
+      if (r.status === 401 && TMDB_TOKEN) throw new Error("Jeton TMDB refusé : vérifie TMDB_TOKEN dans config.js");
+      if (r.status === 401) throw new Error("Session expirée : reconnecte-toi");
+      if (r.status === 404 && !TMDB_TOKEN && !/^\/(movie|tv|person)\//.test(path)) throw new Error("Relais TMDB introuvable : la fonction « tmdb » n'est pas déployée sur Supabase");
+      if (r.status === 502 && !TMDB_TOKEN) throw new Error("Relais TMDB mal configuré : vérifie le secret TMDB_TOKEN de la fonction");
+      throw new Error(`TMDB a répondu ${r.status}`);
+    }
+  } finally { tmdbFree(); }
 }
 // Les séries sont rangées avec un identifiant négatif : les numéros TMDB des films et des séries se chevauchent.
 const isTv = id => id < 0;
@@ -158,4 +202,4 @@ const S = {
 let sb;
 const setSb = client => { sb = client; }; // client Supabase, créé au démarrage par main.js
 
-export { setSb, $, ANIM, DEFAULT_FILTERS, FAMILY, GENRES, HOME, ICON, IMG, LS, S, fmtMins, genreMatch, genreOptions, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, refreshSegs, reportError, sb, segInit, segMove, segSelectBy, segValue, showNotice, snapshot, tmdb, tmdbPage, typeOf };
+export { setSb, sleep, isOffline, showOffline, OFFLINE_TEXT, $, ANIM, DEFAULT_FILTERS, FAMILY, GENRES, HOME, ICON, IMG, LS, S, fmtMins, genreMatch, genreOptions, getDetails, isAnimCat, isTv, normalize, posterSize, reduceMotion, refreshSegs, reportError, sb, segInit, segMove, segSelectBy, segValue, showNotice, snapshot, tmdb, tmdbPage, typeOf };
