@@ -18,7 +18,7 @@ else echo "pytest ou playwright absent : sauté (pip install pytest playwright &
 
 step "Relais TMDB (Deno)"
 if command -v deno >/dev/null; then
-  SINEMA_NO_SERVE=1 TMDB_TOKEN=test deno test --allow-env function/ || fail=1
+  SINEMA_NO_SERVE=1 TMDB_TOKEN=test SUPABASE_URL=https://x.supabase.co deno test --allow-env function/ || fail=1
 else echo "Deno absent : sauté"; fi
 
 step "Schéma Supabase (PostgreSQL)"

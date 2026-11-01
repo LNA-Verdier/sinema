@@ -1,5 +1,5 @@
 // Sinema · core.js — Socle partagé : utilitaires, barres de choix, accès TMDB, genres, état de l'application (S) et client Supabase.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011900";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "../config.js?v=202611011910";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);

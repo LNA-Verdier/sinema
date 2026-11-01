@@ -1,10 +1,10 @@
 // Sinema · rooms.js — Salons : création, rejoindre, ouverture, temps réel, calcul des matchs et pastilles de nouveautés.
-import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011900";
-import { $, LS, S, reportError, sb, segMove, segSelectBy, showNotice } from "./core.js?v=202611011900";
-import { celebrate, filterOk, refill, renderStage, toast } from "./deck.js?v=202611011900";
-import { renderMatches } from "./lists.js?v=202611011900";
-import { clearRoomInputs, closeSheets, openMenu, renderMenu } from "./sheets.js?v=202611011900";
-import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011900";
+import { cleanAvatar, avatarFor } from "./avatars.js?v=202611011910";
+import { $, LS, S, reportError, sb, segMove, segSelectBy, showNotice } from "./core.js?v=202611011910";
+import { celebrate, filterOk, refill, renderStage, toast } from "./deck.js?v=202611011910";
+import { renderMatches } from "./lists.js?v=202611011910";
+import { clearRoomInputs, closeSheets, openMenu, renderMenu } from "./sheets.js?v=202611011910";
+import { renderAll, renderLists, scheduleBadges, setView } from "./main.js?v=202611011910";
 
 async function loadMine(){
   const { data, error } = await sb.from("user_swipes").select("movie_id,verdict,movie,updated_at").eq("user_id", S.me);

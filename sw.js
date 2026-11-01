@@ -3,7 +3,7 @@
 //  - page d'accueil : réseau d'abord, cache si hors connexion
 //  - lectures Supabase et TMDB : réseau d'abord, dernière réponse connue si hors connexion
 //  - affiches TMDB : cache d'abord, 400 images au plus
-const VERSION = "?v=202611011900";
+const VERSION = "?v=202611011910";
 const STATIC = "sinema-static-" + VERSION.slice(3);
 const DATA = "sinema-data";
 const IMAGES = "sinema-images";

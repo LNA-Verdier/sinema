@@ -1,4 +1,4 @@
-// Tests du relais TMDB :  SINEMA_NO_SERVE=1 TMDB_TOKEN=test deno test --allow-env tests/function/
+// Tests du relais TMDB :  SINEMA_NO_SERVE=1 TMDB_TOKEN=test SUPABASE_URL=https://x.supabase.co deno test --allow-env tests/function/
 import { handle } from "../../supabase/functions/tmdb/index.ts";
 
 const b64 = (o: unknown) => btoa(JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -9,8 +9,12 @@ const req = (q: string, token = USER, method = "GET") =>
   new Request(`https://x.supabase.co/functions/v1/tmdb?${q}`, { method, headers: { authorization: `Bearer ${token}`, origin: ORIGIN } });
 
 let seen: string[] = [];
+// faux Supabase Auth : seul le jeton USER correspond à une vraie session
 const fake = (status = 200, headers: Record<string, string> = {}) => ((url: string, init: RequestInit) => {
-  seen.push(url + " | " + (init.headers as Record<string, string>).Authorization);
+  const auth = (init.headers as Record<string, string>).Authorization;
+  if (url.endsWith("/auth/v1/user"))
+    return Promise.resolve(auth === `Bearer ${USER}` ? Response.json({ id: "u1" }) : new Response("{}", { status: 401 }));
+  seen.push(url + " | " + auth);
   return Promise.resolve(new Response('{"ok":true}', { status, headers }));
 }) as unknown as typeof fetch;
 const eq = (a: unknown, b: unknown, msg: string) => { if (a !== b) throw new Error(`${msg} : ${a} au lieu de ${b}`); };
@@ -33,6 +37,11 @@ Deno.test("refuse une personne non connectée (clé publique seule)", async () =
 });
 Deno.test("refuse un jeton expiré", async () => {
   const r = await handle(req("p=/discover/movie", jwt({ role: "authenticated", sub: "u1", exp: 1 })), fake());
+  eq(r.status, 401, "statut");
+});
+Deno.test("refuse un jeton falsifié (inconnu de Supabase Auth)", async () => {
+  const forged = jwt({ role: "authenticated", sub: "u1", exp: Math.floor(Date.now() / 1000) + 600 });
+  const r = await handle(req("p=/discover/movie", forged), fake());
   eq(r.status, 401, "statut");
 });
 Deno.test("refuse les chemins non prévus", async () => {

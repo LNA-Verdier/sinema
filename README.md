@@ -48,7 +48,7 @@ scripts/version.sh        numéro de version anti-cache, à lancer avant chaque 
    - *Authentication → URL Configuration* : *Site URL* et *Redirect URLs* = `https://lna-verdier.github.io/sinema/`.
    - *Authentication → Emails → SMTP Settings* : un service d'envoi (Brevo, Resend…) est nécessaire pour envoyer les e-mails à d'autres adresses que celles de l'équipe Supabase.
 2. **TMDB** : créer une clé API et récupérer le *API Read Access Token*.
-3. **Relais TMDB** : *Edge Functions → Deploy a new function → Via Editor*, nommer la fonction `tmdb`, coller `supabase/functions/tmdb/index.ts`, garder *Verify JWT* activé et déployer. Puis *Edge Functions → Secrets* : ajouter `TMDB_TOKEN` (le jeton TMDB). Avec la CLI : `supabase functions deploy tmdb` et `supabase secrets set TMDB_TOKEN=…`.
+3. **Relais TMDB** : *Edge Functions → Deploy a new function → Via Editor*, nommer la fonction `tmdb`, coller `supabase/functions/tmdb/index.ts`, déployer, puis dans ses réglages désactiver *Verify JWT* (la fonction vérifie elle-même la session auprès de Supabase Auth). Puis *Edge Functions → Secrets* : ajouter `TMDB_TOKEN` (le jeton TMDB). Avec la CLI : `supabase functions deploy tmdb` et `supabase secrets set TMDB_TOKEN=…`.
 4. Renseigner `config.js` (URL Supabase, clé `anon`, `TMDB_TOKEN` vide).
 5. **GitHub Pages** : *Settings → Pages → Deploy from a branch → main / (root)*.
 

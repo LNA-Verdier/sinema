@@ -7,6 +7,7 @@
 //
 // Secrets à définir (Edge Functions → Secrets) :
 //   TMDB_TOKEN       jeton « API Read Access Token » de TMDB (obligatoire)
+// (SUPABASE_URL est fourni automatiquement par Supabase.)
 //   ALLOWED_ORIGINS  adresses du site séparées par des virgules (facultatif)
 
 const TMDB = "https://api.themoviedb.org/3";
@@ -44,18 +45,33 @@ function cors(origin: string | null): Record<string, string> {
   };
 }
 
-// Le jeton de session est vérifié par Supabase avant d'arriver ici (« Verify JWT » activé).
-// On vérifie en plus qu'il s'agit d'une personne connectée, pas de la simple clé publique.
-function userOf(req: Request): string | null {
-  const m = (req.headers.get("authorization") || "").match(/^Bearer\s+[\w-]+\.([\w-]+)\.[\w-]+$/);
+// La personne doit être connectée : son jeton de session est vérifié auprès de Supabase Auth
+// (fonctionne quel que soit le type de clés de signature du projet), puis gardé en mémoire 10 minutes.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const verified = new Map<string, number>(); // jeton -> valable jusqu'à (ms)
+async function userOf(req: Request, fetcher: typeof fetch): Promise<string | null> {
+  const m = (req.headers.get("authorization") || "").match(/^Bearer\s+([\w-]+\.([\w-]+)\.[\w-]+)$/);
   if (!m) return null;
+  let claims;
   try {
-    const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
-    const claims = JSON.parse(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)));
-    if (claims.role !== "authenticated" || !claims.sub) return null;
-    if (claims.exp && claims.exp * 1000 < Date.now()) return null;
-    return String(claims.sub);
+    const b64 = m[2].replace(/-/g, "+").replace(/_/g, "/");
+    claims = JSON.parse(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)));
   } catch { return null; }
+  // la clé publique seule (rôle « anon ») ne suffit pas
+  if (claims.role !== "authenticated" || !claims.sub) return null;
+  if (!claims.exp || claims.exp * 1000 < Date.now()) return null;
+  const token = m[1], sub = String(claims.sub);
+  if ((verified.get(token) || 0) > Date.now()) return sub;
+  try {
+    const apikey = req.headers.get("apikey") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const r = await fetcher(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: `Bearer ${token}`, apikey } });
+    if (!r.ok) return null;
+    const u = await r.json();
+    if (u?.id !== sub) return null;
+  } catch { return null; }
+  if (verified.size > 5000) verified.clear();
+  verified.set(token, Math.min(claims.exp * 1000, Date.now() + 10 * 60_000));
+  return sub;
 }
 
 export async function handle(req: Request, fetcher: typeof fetch = fetch): Promise<Response> {
@@ -66,7 +82,7 @@ export async function handle(req: Request, fetcher: typeof fetch = fetch): Promi
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (req.method !== "GET") return reply(405, { error: "method_not_allowed" });
 
-  const user = userOf(req);
+  const user = await userOf(req, fetcher);
   if (!user) return reply(401, { error: "not_signed_in" });
   if (tooMany(user)) return reply(429, { error: "too_many_requests" }, { "Retry-After": "20" });
 
