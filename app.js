@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011743";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011743";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011755";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011755";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -913,7 +913,11 @@ $("platformBtn").onclick = async () => {
     items:PROVIDERS.map(p => ({ v:p.provider_id, label:p.provider_name, img:IMG(p.logo_path, "w92") })), selected:draftPlatforms, search:true,
     onDone: sel => { draftPlatforms = sel.map(Number); } });
 };
-$("fStrict").addEventListener("change", availHelp);
+$("fStrict").addEventListener("change", () => {
+  // désactiver l'option stricte remet « Mes plateformes » à zéro
+  if (!$("fStrict").checked){ draftPlatforms = []; renderSummaries(); }
+  availHelp();
+});
 function activeFilterCount(){ const f=S.filters; return ["period","rating","person","strict"].filter(k => f[k]).length + (f.genres.length ? 1 : 0) + (f.avail !== "home" ? 1 : 0) + (f.countries?.length ? 1 : 0) + (f.mode !== "top" ? 1 : 0); }
 
 const saveFilters = () => LS.set("sinema-filters2", JSON.stringify(S.filtersBy));
@@ -1095,6 +1099,7 @@ $("leaveYes").onclick = async () => {
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
   S.filters = { mode:segValue($("modeSeg")) || "top", genres:draftGenres, period:getYears(), rating:segValue($("rateSeg")), countries:draftCountries, person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home", strict:$("fStrict").checked };
+  if (!S.filters.strict || S.filters.avail !== "home") draftPlatforms = []; // pas d'option stricte = pas de plateformes retenues
   saveFilters();
   if (JSON.stringify(draftPlatforms) !== JSON.stringify(S.platforms)){
     S.platforms = draftPlatforms; LS.set("sinema-platforms", JSON.stringify(S.platforms));
