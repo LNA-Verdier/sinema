@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011723";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011723";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011732";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011732";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -78,6 +78,7 @@ function getDetails(id){
     cast: (d.credits?.cast || []).slice(0,4).map(c => c.name),
     providers: ((d["watch/providers"]?.results?.FR?.flatrate) || []).slice(0,5).map(p=>({ name:p.provider_name, logo:p.logo_path })),
     watchLink: d["watch/providers"]?.results?.FR?.link || null,
+    releaseDate: (isTv(id) ? d.first_air_date : d.release_date) || null,
     // au moins une offre en France pour regarder chez soi (abonnement, gratuit, avec pub, location, achat)
     hasHomeOffer: ["flatrate","free","ads","rent","buy"].some(k => (d["watch/providers"]?.results?.FR?.[k] || []).length > 0),
     // plateformes d'abonnement / gratuites où le titre est inclus (pour « Mes plateformes »)
@@ -91,7 +92,8 @@ function getDetails(id){
 const snapshot = m => ({ id:m.id, type:m.type, title:m.title, year:m.year, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
 function normalize(m, type){
   const tv = type === "tv";
-  return { id: tv ? -m.id : m.id, type, title: tv ? m.name : m.title, year:((tv ? m.first_air_date : m.release_date)||"").slice(0,4),
+  const date = (tv ? m.first_air_date : m.release_date) || "";
+  return { id: tv ? -m.id : m.id, type, title: tv ? m.name : m.title, year:date.slice(0,4), date,
     poster:m.poster_path, overview:m.overview, genres:(m.genre_ids||[]).map(g=>GENRES[type][g]).filter(Boolean).slice(0,3), vote:m.vote_average };
 }
 const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
@@ -101,7 +103,7 @@ const DEFAULT_FILTERS = { mode:"top", genre:"", period:"", rating:"", countries:
 function loadFilters(){
   let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
   const fix = f => { const x = { ...DEFAULT_FILTERS, ...(f||{}) }; if (!Array.isArray(x.countries)) x.countries = []; if (x.country){ x.countries = [x.country]; } delete x.country;
-    if (x.avail !== "cinema") x.avail = "home"; x.strict = !!x.strict; return x; };
+    if (x.avail !== "cinema" && x.avail !== "soon") x.avail = "home"; x.strict = !!x.strict; return x; };
   const r = { movie:fix(all.movie), tv:fix(all.tv) }; r.tv.person = null; return r;
 }
 const S = {
@@ -450,13 +452,18 @@ function filterOk(m){
   const f = S.filters;
   if (typeOf(m) !== S.type) return false;
   if (f.genre && !(m.genres||[]).includes(GENRES[S.type][f.genre])) return false;
-  if (f.avail === "cinema") return false; // seuls les films à l'affiche trouvés par TMDB passent
+  if (f.avail === "cinema" || f.avail === "soon") return false; // seuls les titres trouvés par TMDB pour ce mode passent
   if (f.period){ const [a,b] = f.period.split("-"); const y = +m.year; if (!y || (a && y < +a) || (b && y > +b)) return false; }
   if (f.rating && (m.vote||0) < +f.rating) return false;
   if (f.person) return false; // le casting n'est pas connu dans l'instantané : seuls les films trouvés par TMDB passent
   return true; // le pays n'est pas connu dans l'instantané : on n'exclut pas
 }
 const isoDay = d => d.toISOString().slice(0,10);
+// « Sortie le 17 nov. 2026 » pour une date future, sinon rien
+function futureLabel(date){
+  if (!date || date <= isoDay(new Date())) return "";
+  return "Sortie le " + new Date(date + "T12:00:00").toLocaleDateString("fr-FR", { day:"numeric", month:"short", year:"numeric" });
+}
 function discoverParams(page){
   const f = S.filters, tv = S.type === "tv";
   const p = { include_adult:"false", page:String(page) };
@@ -480,6 +487,13 @@ function discoverParams(page){
     p["release_date.gte"] = isoDay(from); p["release_date.lte"] = isoDay(now);
     p["vote_count.gte"] = "0"; delete p["vote_count.lte"];
     if (f.mode !== "gems") p.sort_by = "popularity.desc";
+  } else if (f.avail === "soon"){
+    // sorties à venir dans les 6 prochains mois (en salle en France pour les films)
+    const now = new Date(), from = new Date(+now + 864e5), to = new Date(+now + 183*864e5);
+    if (tv){ p["first_air_date.gte"] = isoDay(from); p["first_air_date.lte"] = isoDay(to); }
+    else { p.region = "FR"; p.with_release_type = "3|2"; p["release_date.gte"] = isoDay(from); p["release_date.lte"] = isoDay(to); }
+    p["vote_count.gte"] = "0"; delete p["vote_count.lte"]; delete p["vote_average.gte"];
+    p.sort_by = "popularity.desc";
   } else {
     // « Chez moi » : tout ce qui est déjà sorti. Les films encore en salle en France sont écartés carte par carte (voir vetQueue).
     const today = isoDay(new Date());
@@ -567,7 +581,7 @@ function cardEl(m, cls){
   else el.querySelector(".noposter").textContent = m.title;
   (m.genres||[]).forEach(g => { const s=document.createElement("span"); s.textContent=g; el.querySelector(".genres").appendChild(s); });
   el.querySelector("h2").textContent = m.title;
-  el.querySelector(".year").textContent = [typeOf(m) === "tv" ? "Série" : "", m.year].filter(Boolean).join(" · ");
+  el.querySelector(".year").textContent = [typeOf(m) === "tv" ? "Série" : "", futureLabel(m.date) || m.year].filter(Boolean).join(" · ");
   el.querySelector(".rating").textContent = m.vote ? `★ ${m.vote.toFixed(1)}` : "";
   el.querySelector(".overview").textContent = m.overview || "Pas de résumé en français.";
   return el;
@@ -584,6 +598,8 @@ async function fillDetails(el, m){
   const d = await getDetails(m.id);
   if (!d || !el.isConnected) return;
   el.querySelector(".dur").textContent = [d.seasons ? `${d.seasons} saison${d.seasons>1?"s":""}` : "", d.runtime ? (isTv(m.id) ? `épisodes de ${d.runtime} min` : fmtMins(d.runtime)) : ""].filter(Boolean).join(" · ");
+  const soon = futureLabel(d.frTheatrical) || futureLabel(d.releaseDate);
+  if (soon) el.querySelector(".year").textContent = [isTv(m.id) ? "Série" : "", soon].filter(Boolean).join(" · ");
   const cr = el.querySelector(".credits"); cr.textContent = "";
   const addPart = (label, names) => { if (!names.length) return; if (cr.childNodes.length) cr.append(" · "); cr.append(label + " "); const b=document.createElement("b"); b.textContent = names.join(", "); cr.append(b); };
   addPart(d.directorLabel, d.directors); addPart("Avec", d.cast);
@@ -610,6 +626,8 @@ function keepAtHome(d){
     if (S.platforms.length) return d.subProviderIds.some(id => S.platforms.includes(id));
     return d.hasHomeOffer;
   }
+  const today = isoDay(new Date());
+  if (d.releaseDate && d.releaseDate > today) return false;        // pas encore sorti nulle part
   if (d.frTheatrical && !d.hasHomeOffer){
     const days = (Date.now() - Date.parse(d.frTheatrical)) / 864e5;
     if (days < CINEMA_WINDOW_DAYS) return false; // en salle en ce moment, ou sortie à venir en France
@@ -820,10 +838,11 @@ $("yearMax").addEventListener("input", () => { if (+$("yearMax").value < +$("yea
 function availHelp(){
   const w = S.type === "tv" ? "séries" : "films", v = segValue($("availSeg"));
   $("availHelp").textContent = v === "cinema"
-    ? "Les films sortis en salle en France ces 6 dernières semaines. Les films pas encore sortis n'apparaissent pas."
+    ? "Les films sortis en salle en France ces 6 dernières semaines."
+    : v === "soon" ? (S.type === "tv" ? "Les séries qui commencent dans les 6 prochains mois." : "Les films qui sortent en salle en France dans les 6 prochains mois.")
     : S.type === "tv" ? `Toutes les ${w} déjà diffusées.` : `Tous les ${w} déjà sortis, sauf ceux encore à l'affiche en France.`;
-  $("strictBlock").hidden = v === "cinema";
-  $("platformBlock").hidden = v === "cinema" || !$("fStrict").checked;
+  $("strictBlock").hidden = v !== "home";
+  $("platformBlock").hidden = v !== "home" || !$("fStrict").checked;
 }
 // ---------- Mes plateformes ----------
 let draftPlatforms = [], PROVIDERS = null;
