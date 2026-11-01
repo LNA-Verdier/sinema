@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011850";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011850";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011856";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011856";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -1405,11 +1405,25 @@ $("mineSearch").addEventListener("input", e => { S.mineQuery = e.target.value; r
 function genreEdges(){
   const g = $("mineGenres"), start = g.scrollLeft <= 4, end = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
   g.classList.toggle("start", start); g.classList.toggle("end", end);
-  $("gPrev").hidden = start; $("gNext").hidden = end;
+  $("gPrev").disabled = start; $("gNext").disabled = end;
+  $("gPrev").hidden = $("gNext").hidden = start && end;   // tout tient sur la ligne : pas de flèches
 }
 $("mineGenres").addEventListener("scroll", genreEdges);
-$("gPrev").onclick = () => $("mineGenres").scrollBy({ left: -$("mineGenres").clientWidth * .7 });
-$("gNext").onclick = () => $("mineGenres").scrollBy({ left: $("mineGenres").clientWidth * .7 });
+// Défilement par pastilles entières : la pastille coupée d'un côté devient la première visible de l'autre
+const ARROW_ZONE = 0; // les flèches sont désormais à côté du bandeau, elles ne masquent plus rien
+function genreStep(dir){
+  const g = $("mineGenres"), box = g.getBoundingClientRect(), chips = [...g.querySelectorAll("button")];
+  const left = box.left + ARROW_ZONE, right = box.right - ARROW_ZONE;
+  if (dir > 0){
+    const cut = chips.find(c => c.getBoundingClientRect().right > right + 1);
+    if (cut) g.scrollBy({ left: cut.getBoundingClientRect().left - left });
+  } else {
+    const cut = [...chips].reverse().find(c => c.getBoundingClientRect().left < left - 1);
+    if (cut) g.scrollBy({ left: cut.getBoundingClientRect().right - right });
+  }
+}
+$("gPrev").onclick = () => genreStep(-1);
+$("gNext").onclick = () => genreStep(1);
 // molette verticale = défilement horizontal au-dessus du bandeau
 $("mineGenres").addEventListener("wheel", e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ e.preventDefault(); $("mineGenres").scrollLeft += e.deltaY; } }, { passive:false });
 window.addEventListener("resize", () => genreEdges());

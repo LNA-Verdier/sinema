@@ -101,17 +101,14 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;mi
 .gchips{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
 .gchips.end{-webkit-mask-image:none;mask-image:none}
 .gchips .moreg{display:none}
-/* ordinateur (souris) : une seule ligne, avec des flèches pour faire défiler */
-.gwrap{position:relative}
+/* ordinateur (souris) : une seule ligne, flèches à côté du bandeau (jamais par-dessus les genres) */
+.gwrap{position:relative;min-width:0}
 .gwrap .garrow{display:none}
 @media (hover:hover) and (pointer:fine){
-  .gchips{scroll-behavior:smooth;-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
-  .gchips.start{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
-  .gchips.end{-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px);mask-image:linear-gradient(90deg,transparent,#000 36px)}
-  .gchips.start.end{-webkit-mask-image:none;mask-image:none}
-  .gwrap .garrow{display:grid;place-items:center;position:absolute;top:50%;margin-top:-14px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;z-index:2;font-size:16px;line-height:1;padding:0}
-  .gwrap .garrow.prev{left:0}.gwrap .garrow.next{right:0}
-  .gwrap .garrow[hidden]{display:none!important}
+  .gwrap{display:flex;align-items:center;gap:6px}
+  .gwrap .gchips{flex:1;min-width:0;margin:0;-webkit-mask-image:none;mask-image:none}
+  .gwrap .garrow{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-size:16px;line-height:1;padding:0;transition:opacity .2s}
+  .gwrap .garrow:disabled{opacity:.3;cursor:default}
 }
 .gchips button{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
 .gchips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
