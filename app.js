@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011707";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011707";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011707b";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011707b";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -643,7 +643,7 @@ function renderMatches(){
   if (!shown.length){
     const e=document.createElement("div"); e.className="lempty";
     e.textContent = all.length ? "Tous vos films en commun sont marqués comme vus."
-      : others().length ? "Pas encore de film en commun. Continuez à swiper : les films que les autres aiment remontent dans ta pile."
+      : others().length ? "Pas encore de titre en commun. Continuez à swiper, ils apparaîtront ici dès que vous serez d'accord."
       : "Invite quelqu'un dans ce salon depuis le menu en haut à droite.";
     list.appendChild(e); return;
   }
