@@ -255,6 +255,7 @@ async function logout(){
 
 // ================== Salons ==================
 function onboard(code){
+  document.querySelector(".app").dataset.view = "onboard";
   ["view-swipe","view-matches","view-mine"].forEach(v => $(v).hidden = true);
   $("tabs").hidden = true; $("menuBtn").hidden = !S.rooms.length;
   $("view-onboard").hidden = false;
@@ -708,7 +709,7 @@ function renderAll(){
 }
 
 function setView(v){
-  S.view = v;
+  S.view = v; document.querySelector(".app").dataset.view = v;
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
   if (v === "mine") requestAnimationFrame(() => segMove($("mineSeg"), false));
