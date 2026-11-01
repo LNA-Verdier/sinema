@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://image.tmdb.org">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=202611011707">
 </head>
 <body>
 <div class="app">
@@ -76,24 +76,34 @@
 
   <!-- Premier salon / invitation -->
   <section id="view-onboard" class="onboard" hidden>
-    <h1 id="onboardTitle">Crée ton premier salon</h1>
-    <p class="lead" id="onboardLead">Un salon réunit les personnes avec qui tu veux choisir des films : ton couple, ta coloc, tes amis. Tu peux en avoir plusieurs.</p>
+    <h1 id="onboardTitle">Bienvenue !</h1>
+    <p class="lead" id="onboardLead">Un salon réunit les personnes avec qui tu choisis tes films : ton couple, ta coloc, tes amis. Tu peux en avoir plusieurs.</p>
+
+    <!-- Arrivée par un lien d'invitation -->
     <div class="sheet" id="joinInvite" hidden>
-      <p>Tu es invité dans le salon <b id="joinCodeLabel"></b>.</p>
-      <button class="cta" type="button" id="joinInviteBtn">Rejoindre le salon</button>
-      <p class="fine">Tes choix (envies, bof, déjà vu) sont partagés avec les membres de tes salons pour trouver vos films en commun.</p>
+      <h3>Rejoindre un salon existant</h3>
+      <p>Quelqu'un t'a invité dans son salon (code <b id="joinCodeLabel"></b>). En le rejoignant, vous swiperez ensemble et vos envies communes apparaîtront dans « Nos films ».</p>
+      <button class="cta" type="button" id="joinInviteBtn">Rejoindre ce salon</button>
+      <button class="linkbtn" type="button" id="inviteOtherBtn">Non merci, je préfère créer mon propre salon</button>
+      <p class="fine">Tes choix (envies, bof, déjà vu) servent uniquement à trouver vos titres en commun.</p>
     </div>
+
+    <!-- Arrivée sans invitation -->
     <div class="sheet" id="firstRoom">
-      <label for="newRoomName">Nom du salon</label>
-      <input id="newRoomName" maxlength="40" placeholder="Ex. : Soirées canapé">
-      <button class="cta" type="button" id="firstCreateBtn">Créer le salon</button>
-      <details class="join-code">
-        <summary>J'ai un code d'invitation</summary>
-        <div class="row-inline">
-          <input id="codeInput" maxlength="8" placeholder="ABCD2345" autocapitalize="characters" autocomplete="off">
-          <button class="ghost" type="button" id="joinCodeBtn">Rejoindre</button>
-        </div>
-      </details>
+      <div class="seg" role="tablist" id="onboardSeg">
+        <button type="button" role="tab" data-v="join" aria-selected="true">Rejoindre un salon existant</button>
+        <button type="button" role="tab" data-v="create" aria-selected="false">Créer un salon</button>
+      </div>
+      <div class="stack" id="obJoin">
+        <p>Quelqu'un t'a donné un code à 8 caractères ? Saisis-le pour rejoindre son salon.</p>
+        <input id="codeInput" maxlength="8" placeholder="Code d'invitation" autocapitalize="characters" autocomplete="off" aria-label="Code d'invitation">
+        <button class="cta" type="button" id="joinCodeBtn">Rejoindre ce salon</button>
+      </div>
+      <div class="stack" id="obCreate" hidden>
+        <p>Crée ton salon, puis invite les autres avec le lien ou le code qu'on te donnera.</p>
+        <input id="newRoomName" maxlength="40" placeholder="Nom du salon (ex. : Soirées canapé)" aria-label="Nom du salon">
+        <button class="cta" type="button" id="firstCreateBtn">Créer le salon</button>
+      </div>
     </div>
   </section>
 
@@ -265,17 +275,13 @@
       <button type="button" role="tab" data-v="all" aria-selected="false">Tout</button>
     </div>
     <p class="fine" id="availHelp"></p>
-    <label for="fPeriod" id="periodLabel">Année de sortie</label>
-    <select id="fPeriod">
-      <option value="">Toutes les années</option>
-      <option value="2020-">Depuis 2020</option>
-      <option value="2010-2019">Années 2010</option>
-      <option value="2000-2009">Années 2000</option>
-      <option value="1990-1999">Années 1990</option>
-      <option value="1980-1989">Années 1980</option>
-      <option value="1960-1979">1960 à 1979</option>
-      <option value="-1959">Avant 1960</option>
-    </select>
+    <div class="yearhead"><label id="periodLabel">Année de sortie</label><span class="yearval" id="yearVal"></span></div>
+    <div class="range2" id="yearRange">
+      <div class="track"><div class="fill" id="yearFill"></div></div>
+      <input type="range" id="yearMin" aria-label="Année minimale">
+      <input type="range" id="yearMax" aria-label="Année maximale">
+    </div>
+    <div class="yearticks" id="yearTicks"></div>
     <label>Note minimale</label>
     <div class="seg" role="tablist" id="rateSeg">
       <button type="button" role="tab" data-v="" aria-selected="true">Toutes</button>
@@ -324,6 +330,6 @@
   <small id="matchKind">C'est un match</small><strong id="matchTitle"></strong><span id="matchWho"></span>
 </div></div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=202611011707"></script>
 </body>
 </html>

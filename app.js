@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011707";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011707";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -111,7 +111,7 @@ const S = {
   get filters(){ return this.filtersBy[this.type]; },
   set filters(v){ this.filtersBy[this.type] = v; },
   mineType:"", mineQuery:"",
-  queue:[], pageOrder:null, pageIdx:0, totalPages:1, loading:false,
+  queue:[], pending:[], pageOrder:null, pageIdx:0, totalPages:1, loading:false,
   history:[], busy:false, channel:null, view:"swipe", mineTab:"like",
 };
 let sb;
@@ -122,7 +122,7 @@ async function boot(){
     showNotice("Configuration incomplète : renseigne SUPABASE_URL, SUPABASE_ANON_KEY et TMDB_TOKEN dans config.js.");
     return;
   }
-  ["tabs","authSeg","mineSeg","modeSeg","rateSeg","typeSeg","mineTypeSeg","availSeg"].forEach(id => segInit($(id), b => onSeg(id, b)));
+  ["tabs","authSeg","mineSeg","modeSeg","rateSeg","typeSeg","mineTypeSeg","availSeg","onboardSeg"].forEach(id => segInit($(id), b => onSeg(id, b)));
   segSelectBy($("typeSeg"), b => b.dataset.v === S.type);
   const url = new URL(location.href);
   const h = location.hash.slice(1);
@@ -144,6 +144,7 @@ function onSeg(id, btn){
   else if (id === "mineSeg"){ S.mineTab = btn.dataset.v; renderMine(); }
   else if (id === "modeSeg") modeHelp();
   else if (id === "availSeg") availHelp();
+  else if (id === "onboardSeg") showOb(btn.dataset.v);
   else if (id === "typeSeg") switchType(btn.dataset.v);
   else if (id === "mineTypeSeg"){ S.mineType = btn.dataset.v; renderMine(); }
 }
@@ -267,11 +268,14 @@ function onboard(code){
   $("tabs").hidden = true; $("menuBtn").hidden = !S.rooms.length;
   $("view-onboard").hidden = false;
   $("joinInvite").hidden = !code; $("firstRoom").hidden = !!code;
-  $("onboardTitle").textContent = code ? "On t'attend !" : "Crée ton premier salon";
+  $("onboardTitle").textContent = code ? "Tu es invité !" : "Bienvenue !";
   $("onboardLead").hidden = !!code;
   if (code) $("joinCodeLabel").textContent = code;
   $("joinInviteBtn").onclick = () => guarded($("joinInviteBtn"), () => joinRoom(code));
+  $("inviteOtherBtn").onclick = () => { onboard(null); segSelectBy($("onboardSeg"), b => b.dataset.v === "create"); showOb("create"); };
+  requestAnimationFrame(() => segMove($("onboardSeg"), false));
 }
+function showOb(v){ $("obJoin").hidden = v !== "join"; $("obCreate").hidden = v !== "create"; }
 async function guarded(btn, fn){
   if (btn.disabled) return;
   btn.disabled = true;
@@ -384,7 +388,7 @@ function subscribeRoom(){
       const after = matchKind(row.movie_id);
       if (after && after !== "partial" && after !== before) celebrate(row.movie_id, after);
       if (n?.verdict === "like" && !S.mine.has(n.movie_id) && !S.queue.some(q=>q.id===n.movie_id) && n.movie?.title && filterOk(n.movie)){
-        S.queue.splice(Math.min(2, S.queue.length), 0, n.movie);
+        (S.pending = S.pending || []).splice(Math.floor(Math.random() * (S.pending.length + 1)), 0, n.movie);
       }
       renderAll();
     })
@@ -480,15 +484,31 @@ function discoverParams(page){
 }
 const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
 
+// Recette de la pile :
+// - la découverte TMDB est tirée au hasard (pages mélangées, résultats mélangés) pour que chacun ait un ordre différent ;
+// - les titres aimés par les autres membres sont glissés au hasard, environ 1 carte sur 4, jamais en tête de pile
+//   et sans être signalés : assez pour obtenir vite des matchs, sans dévoiler les choix de chacun.
+const SHARE_RATE = 0.25;
+function collectPending(){
+  const pending = new Map();
+  for (const m of S.theirs.values()) for (const [id, e] of m){
+    if (e.verdict === "like" && !S.mine.has(id) && e.movie?.title && filterOk(e.movie)) pending.set(id, e.movie);
+  }
+  S.pending = shuffle([...pending.values()]);
+}
+function pushWithShared(batch){
+  const ids = new Set(S.queue.map(q => q.id));
+  for (const m of batch){
+    if (S.queue.length >= 2 && S.pending.length && Math.random() < SHARE_RATE){
+      const p = S.pending.shift(); if (!ids.has(p.id) && !S.mine.has(p.id)){ S.queue.push(p); ids.add(p.id); }
+    }
+    if (!ids.has(m.id)){ S.queue.push(m); ids.add(m.id); }
+  }
+}
 async function refill(reset = false){
   if (reset){
     S.queue = []; S.pageOrder = null; S.pageIdx = 0; S.totalPages = 1;
-    // d'abord les films que les autres membres ont aimés et que je n'ai pas encore swipés
-    const pending = new Map();
-    for (const m of S.theirs.values()) for (const [id, e] of m){
-      if (e.verdict === "like" && !S.mine.has(id) && e.movie?.title && filterOk(e.movie)) pending.set(id, e.movie);
-    }
-    S.queue.push(...shuffle([...pending.values()]));
+    collectPending();
   }
   if (S.loading) return;
   S.loading = true;
@@ -496,17 +516,21 @@ async function refill(reset = false){
     let guard = 0;
     while (S.queue.length < 8 && guard++ < 6){
       let page;
-      if (S.filters.mode === "mix" && S.pageOrder){ if (S.pageIdx >= S.pageOrder.length) break; page = S.pageOrder[S.pageIdx++]; }
-      else { if (S.pageIdx >= Math.min(S.totalPages, 500)) break; page = ++S.pageIdx; }
+      if (S.pageOrder){ if (S.pageIdx >= S.pageOrder.length) break; page = S.pageOrder[S.pageIdx++]; }
+      else page = 1;
       const d = await tmdb(`/discover/${S.type}`, discoverParams(page));
-      S.totalPages = d.total_pages || 1;
-      if (S.filters.mode === "mix" && !S.pageOrder){
-        S.pageOrder = shuffle(Array.from({ length: Math.min(S.totalPages, 300) - 1 }, (_, i) => i + 2)); S.pageIdx = 0;
+      S.totalPages = Math.min(d.total_pages || 1, 500);
+      if (!S.pageOrder){
+        // Populaires / Pépites : on pioche au hasard dans les pages par paquets de 8 (du plus connu au moins connu).
+        // Mélange : n'importe quelle page parmi 300.
+        const n = S.totalPages;
+        if (S.filters.mode === "mix") S.pageOrder = shuffle(Array.from({ length: Math.min(n, 300) - 1 }, (_, i) => i + 2));
+        else { S.pageOrder = []; for (let a = 2; a <= Math.min(n, 200); a += 8) S.pageOrder.push(...shuffle(Array.from({ length: Math.min(8, n - a + 1) }, (_, i) => a + i))); }
+        S.pageIdx = 0;
       }
       const inQueue = new Set(S.queue.map(q=>q.id));
-      let batch = d.results.map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id));
-      if (S.filters.mode === "mix") batch = shuffle(batch);
-      S.queue.push(...batch);
+      const batch = shuffle(d.results.map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
+      pushWithShared(batch);
     }
   } finally { S.loading = false; }
 }
@@ -535,8 +559,6 @@ function cardEl(m, cls){
   el.querySelector(".year").textContent = [typeOf(m) === "tv" ? "Série" : "", m.year].filter(Boolean).join(" · ");
   el.querySelector(".rating").textContent = m.vote ? `★ ${m.vote.toFixed(1)}` : "";
   el.querySelector(".overview").textContent = m.overview || "Pas de résumé en français.";
-  const fans = othersWith(m.id, "like");
-  if (fans.length){ const p=document.createElement("div"); p.className="partner"; p.textContent=`${namesOf(fans)} ${fans.length>1?"ont":"a"} envie de le voir`; el.appendChild(p); }
   return el;
 }
 function setupMore(el){
@@ -709,7 +731,7 @@ function renderFilters(){
   availHelp();
   segSelectBy($("modeSeg"), b => b.dataset.v === f.mode);
   segSelectBy($("rateSeg"), b => b.dataset.v === f.rating);
-  $("fGenre").value = f.genre; $("fPeriod").value = f.period;
+  $("fGenre").value = f.genre; setYears(f.period);
   $("fCountries").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", (f.countries||[]).includes(b.dataset.v)));
   $("personBlock").hidden = tv;
   draftPerson = f.person; renderPerson();
@@ -721,6 +743,30 @@ function modeHelp(){
     mix:`Un tirage au hasard parmi des milliers de ${w}, connus ou non.`,
     gems:`Des ${w} très bien notés mais peu vus : de quoi faire des découvertes.` }[segValue($("modeSeg"))];
 }
+// ---------- Curseur d'années à deux poignées ----------
+const YEAR_MIN = 1920, YEAR_MAX = new Date().getFullYear();
+function setYears(period){
+  const [a, b] = (period || "").split("-");
+  const lo = Math.max(YEAR_MIN, +a || YEAR_MIN), hi = Math.min(YEAR_MAX, +b || YEAR_MAX);
+  for (const id of ["yearMin","yearMax"]){ const r = $(id); r.min = YEAR_MIN; r.max = YEAR_MAX; r.step = 1; }
+  $("yearMin").value = lo; $("yearMax").value = hi; drawYears();
+}
+function getYears(){
+  const lo = +$("yearMin").value, hi = +$("yearMax").value;
+  return lo <= YEAR_MIN && hi >= YEAR_MAX ? "" : `${lo > YEAR_MIN ? lo : ""}-${hi < YEAR_MAX ? hi : ""}`;
+}
+function drawYears(){
+  const lo = +$("yearMin").value, hi = +$("yearMax").value, span = YEAR_MAX - YEAR_MIN;
+  $("yearFill").style.left = ((lo - YEAR_MIN) / span * 100) + "%";
+  $("yearFill").style.right = ((YEAR_MAX - hi) / span * 100) + "%";
+  $("yearVal").textContent = lo <= YEAR_MIN && hi >= YEAR_MAX ? "Toutes les années" : lo === hi ? String(lo) : `${lo <= YEAR_MIN ? "Avant" : lo} – ${hi}`;
+  // la poignée de gauche passe au premier plan quand elle est collée à droite (sinon on ne pourrait plus la déplacer)
+  $("yearMin").style.zIndex = lo > YEAR_MAX - 5 ? 3 : 1;
+}
+$("yearMin").addEventListener("input", () => { if (+$("yearMin").value > +$("yearMax").value) $("yearMin").value = $("yearMax").value; drawYears(); });
+$("yearMax").addEventListener("input", () => { if (+$("yearMax").value < +$("yearMin").value) $("yearMax").value = $("yearMin").value; drawYears(); });
+(() => { const t = $("yearTicks"); [YEAR_MIN, 1950, 1980, 2000, YEAR_MAX].forEach(y => { const s = document.createElement("span"); s.textContent = y; s.style.left = ((y - YEAR_MIN) / (YEAR_MAX - YEAR_MIN) * 100) + "%"; t.appendChild(s); }); })();
+
 function availHelp(){
   const w = S.type === "tv" ? "séries" : "films";
   $("availHelp").textContent = { home:`Les ${w} que tu peux regarder en France en streaming ou en VOD (location, achat).`,
@@ -747,7 +793,8 @@ function setView(v){
   S.view = v; document.querySelector(".app").dataset.view = v;
   segSelectBy($("tabs"), b => b.dataset.view === v);
   $("view-swipe").hidden = v !== "swipe"; $("view-matches").hidden = v !== "matches"; $("view-mine").hidden = v !== "mine";
-  if (v === "mine") requestAnimationFrame(() => segMove($("mineSeg"), false));
+  // une barre qui était masquée n'a pas pu placer son curseur : on le recalcule (sans toucher aux onglets, pour garder leur animation)
+  requestAnimationFrame(() => document.querySelectorAll(".seg:not(.tabs)").forEach(sg => segMove(sg, false)));
 }
 
 // ================== Actions ==================
@@ -903,7 +950,7 @@ $("leaveYes").onclick = async () => {
 };
 $("logoutBtn").onclick = logout;
 $("applyFilters").onclick = async () => {
-  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:$("fPeriod").value, rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home" };
+  S.filters = { mode:segValue($("modeSeg")) || "top", genre:$("fGenre").value, period:getYears(), rating:segValue($("rateSeg")), countries:[...$("fCountries").querySelectorAll('button[aria-pressed="true"]')].map(b => b.dataset.v), person: S.type === "tv" ? null : draftPerson, avail:segValue($("availSeg")) || "home" };
   saveFilters();
   closeSheets(); setView("swipe");
   S.loading = false; await refill(true).catch(reportError); renderAll();
