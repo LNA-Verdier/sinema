@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011804";
-import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011804";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TMDB_TOKEN } from "./config.js?v=202611011819";
+import { BASES, COLORS as AV_COLORS, SLOTS, avatarSVG, avatarFor, cleanAvatar } from "./avatars.js?v=202611011819";
 
 // ================== Utilitaires ==================
 const $ = id => document.getElementById(id);
@@ -89,12 +89,37 @@ function getDetails(id){
   })).catch(() => null));
   return details.get(id);
 }
+// ---------- Trois catégories à la place du genre « Animation » ----------
+// anime : animation en japonais (Ghibli, Shinkai, mangas…) — prioritaire
+// anim_family : animation marquée « Familial », hors japonais (Disney, Pixar, DreamWorks, Illumination…)
+// anim_other : le reste de l'animation (adulte, d'auteur)
+const ANIM = 16, FAMILY = 10751;
+const ANIM_CATS = [["anime","Anime"],["anim_family","Animation familiale"],["anim_other","Autre animation"]];
+const isAnimCat = g => ANIM_CATS.some(([k]) => k === g);
+function animCat(genreIds, lang){
+  if (!(genreIds||[]).includes(ANIM)) return null;
+  if (lang === "ja") return "anime";
+  return genreIds.includes(FAMILY) ? "anim_family" : "anim_other";
+}
+// Un résultat TMDB correspond-il aux genres choisis (OU) ?
+function genreMatch(x, genres){
+  if (!genres.length) return true;
+  const ids = x.genre_ids || [], cat = animCat(ids, x.original_language);
+  return genres.some(g => isAnimCat(g) ? g === cat : ids.includes(+g));
+}
+// Genres proposés dans le filtre : « Animation » remplacé par les trois catégories, à sa place
+function genreOptions(type){
+  const out = [];
+  Object.entries(GENRES[type]).forEach(([id, label]) => { if (+id === ANIM) out.push(...ANIM_CATS); else out.push([id, label]); });
+  return out;
+}
 const snapshot = m => ({ id:m.id, type:m.type, title:m.title, year:m.year, poster:m.poster, overview:(m.overview||"").slice(0,600), genres:m.genres, vote:m.vote });
 function normalize(m, type){
   const tv = type === "tv";
   const date = (tv ? m.first_air_date : m.release_date) || "";
   return { id: tv ? -m.id : m.id, type, title: tv ? m.name : m.title, year:date.slice(0,4), date,
-    poster:m.poster_path, overview:m.overview, genres:(m.genre_ids||[]).map(g=>GENRES[type][g]).filter(Boolean).slice(0,3), vote:m.vote_average };
+    poster:m.poster_path, overview:m.overview, vote:m.vote_average,
+    genres:(m.genre_ids||[]).map(g => g === ANIM && m.original_language === "ja" ? "Anime" : GENRES[type][g]).filter(Boolean).slice(0,3) };
 }
 const typeOf = m => m?.type || (m?.id < 0 ? "tv" : "movie");
 
@@ -104,7 +129,8 @@ function loadFilters(){
   let all = {}; try{ all = JSON.parse(LS.get("sinema-filters2") || "{}"); }catch{}
   const fix = f => { const x = { ...DEFAULT_FILTERS, ...(f||{}) }; if (!Array.isArray(x.countries)) x.countries = []; if (x.country){ x.countries = [x.country]; } delete x.country;
     if (x.avail !== "cinema" && x.avail !== "soon") x.avail = "home";
-    if (!Array.isArray(x.genres)) x.genres = []; if (x.genre){ x.genres = [String(x.genre)]; } delete x.genre; x.strict = !!x.strict; return x; };
+    if (!Array.isArray(x.genres)) x.genres = []; if (x.genre){ x.genres = [String(x.genre)]; } delete x.genre;
+    if (x.genres.includes(String(ANIM))) x.genres = [...x.genres.filter(g => g !== String(ANIM)), ...ANIM_CATS.map(([k]) => k)]; x.strict = !!x.strict; return x; };
   const r = { movie:fix(all.movie), tv:fix(all.tv) }; r.tv.person = null; return r;
 }
 const S = {
@@ -493,7 +519,9 @@ function filterOk(m){
   const f = S.filters;
   if (typeOf(m) !== S.type) return false;
   // genres cumulatifs : il suffit d'en avoir un parmi ceux choisis
-  if (f.genres.length && !f.genres.some(g => (m.genres||[]).includes(GENRES[S.type][g]))) return false;
+  if (f.genres.length && !f.genres.some(g => isAnimCat(g)
+      ? (m.genres||[]).some(n => n === "Animation" || n === "Anime")   // la langue n'est pas stockée : on accepte toute animation
+      : (m.genres||[]).includes(GENRES[S.type][g]))) return false;
   if (f.avail === "cinema" || f.avail === "soon") return false; // seuls les titres trouvés par TMDB pour ce mode passent
   if (f.period){ const [a,b] = f.period.split("-"); const y = +m.year; if (!y || (a && y < +a) || (b && y > +b)) return false; }
   if (f.rating && (m.vote||0) < +f.rating) return false;
@@ -513,7 +541,18 @@ function discoverParams(page){
   else if (f.mode === "mix"){ p.sort_by = "popularity.desc"; p["vote_count.gte"] = "80"; }
   else { p.sort_by = "popularity.desc"; p["vote_count.gte"] = "300"; }
   if (f.rating && f.mode !== "gems") p["vote_average.gte"] = f.rating;
-  if (f.genres.length) p.with_genres = f.genres.join("|"); // « | » = l'un ou l'autre (OU), « , » serait ET
+  if (f.genres.length){
+    const real = f.genres.filter(g => !isAnimCat(g)), cats = f.genres.filter(isAnimCat);
+    if (!real.length && cats.length === 1){
+      // une seule catégorie d'animation : on cible au mieux côté TMDB
+      if (cats[0] === "anime"){ p.with_genres = String(ANIM); p.with_original_language = "ja"; }
+      else if (cats[0] === "anim_family") p.with_genres = `${ANIM},${FAMILY}`;          // « , » = les deux à la fois
+      else { p.with_genres = String(ANIM); p.without_genres = String(FAMILY); }
+    } else {
+      p.with_genres = [...real, ...(cats.length ? [ANIM] : [])].join("|");             // « | » = l'un ou l'autre
+    }
+    // le tri fin (langue japonaise, familial) se fait ensuite dans refill avec genreMatch
+  }
   if (f.countries?.length) p.with_origin_country = f.countries.join("|"); // « | » = l'un ou l'autre
   if (f.person && !tv) p.with_people = String(f.person.id);
   const dateKey = tv ? "first_air_date" : "primary_release_date";
@@ -596,7 +635,7 @@ async function refill(reset = false){
         S.pageIdx = 0;
       }
       const inQueue = new Set(S.queue.map(q=>q.id));
-      const batch = shuffle(d.results.map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
+      const batch = shuffle(d.results.filter(x => genreMatch(x, S.filters.genres)).map(x => normalize(x, S.type)).filter(m => !S.mine.has(m.id) && !inQueue.has(m.id)));
       pushWithShared(batch);
     }
   } finally { S.loading = false; }
@@ -910,7 +949,7 @@ function summary(sel, names, none){
 }
 function setSum(id, { text, empty }){ const el = $(id); el.textContent = text; el.classList.toggle("placeholder", empty); }
 function renderSummaries(){
-  setSum("genreSum", summary(draftGenres, new Map(Object.entries(GENRES[S.type])), "Tous les genres"));
+  setSum("genreSum", summary(draftGenres, new Map(genreOptions(S.type)), "Tous les genres"));
   setSum("countrySum", summary(draftCountries, new Map(COUNTRIES), "Tous les pays"));
   setSum("platformSum", summary(draftPlatforms, new Map((PROVIDERS||[]).map(p => [String(p.provider_id), p.provider_name])), "Toutes les plateformes"));
 }
@@ -943,7 +982,7 @@ $("pickerDone").onclick = () => { picker.onDone([...picker.sel]); $("pickerSheet
 $("pickerClose").onclick = () => { $("pickerSheet").hidden = true; };
 $("genreBtn").onclick = () => openPicker({
   title:"Genres", hint:"Les titres d'au moins un des genres choisis sont proposés.",
-  items:Object.entries(GENRES[S.type]).map(([v, label]) => ({ v, label })), selected:draftGenres, search:false,
+  items:genreOptions(S.type).map(([v, label]) => ({ v, label })), selected:draftGenres, search:false,
   onDone: sel => { draftGenres = sel; } });
 $("countryBtn").onclick = () => openPicker({
   title:"Pays de production", hint:"Les titres produits dans au moins un des pays choisis sont proposés.",
