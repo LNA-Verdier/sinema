@@ -50,6 +50,13 @@ input{font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid var(-
 .join-code .row-inline{margin-top:10px}
 .join-code input{text-transform:uppercase;letter-spacing:.2em;font-weight:700}
 .hint-text{font-size:14px}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:14px;padding:8px;border-radius:7px;cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+#signupOnly{display:flex;flex-direction:column;gap:12px}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;font-size:13px;cursor:pointer;align-self:center}
+.account{font-size:12.5px;text-align:center}
+.account .linkbtn{font-size:12.5px}
 .code{font-family:var(--f-display);font-weight:900;font-size:44px;letter-spacing:.12em;text-align:center;line-height:1}
 
 /* --- Swipe --- */

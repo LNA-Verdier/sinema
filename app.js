@@ -55,34 +55,133 @@ const S = {
 let sb;
 
 // ================== Démarrage ==================
+const HOME = location.origin + location.pathname;
 async function boot(){
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !TMDB_TOKEN){
     showNotice("Configuration incomplète : renseigne SUPABASE_URL, SUPABASE_ANON_KEY et TMDB_TOKEN dans config.js.");
     return;
   }
-  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-  let { data:{ session } } = await sb.auth.getSession();
-  if (!session){
-    const { data, error } = await sb.auth.signInAnonymously();
-    if (error) throw new Error("Connexion impossible ("+error.message+"). As-tu activé les connexions anonymes dans Supabase ?");
-    session = data.session;
-  }
-  S.me = session.user.id;
+  // Code de salon reçu par lien d'invitation (?salon=CODE, ou ancien format #CODE)
+  const url = new URL(location.href);
+  const h = location.hash.slice(1);
+  const invite = (url.searchParams.get("salon") || (/^[A-Za-z0-9]{6,8}$/.test(h) ? h : "")).toUpperCase();
+  if (invite) LS.set("cad-invite", invite);
+  const isRecovery = /type=recovery/.test(location.hash);
 
-  const hashCode = (location.hash||"").replace("#","").toUpperCase();
-  const saved = LS.get("cad-room");
-  if (hashCode && hashCode !== saved) return onboard(hashCode);
-  if (saved && S.name) return enterRoom(saved);
-  if (saved) return onboard(saved);
-  onboard(null);
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:"implicit" } });
+  const { data:{ session } } = await sb.auth.getSession();
+  if (location.search || location.hash) history.replaceState(null, "", location.pathname);
+  if (isRecovery && session) return showReset();
+  if (!session) return showAuth("signup");
+  await afterLogin(session);
 }
+
+async function afterLogin(session){
+  ["view-auth","view-reset"].forEach(v => $(v).hidden = true);
+  S.me = session.user.id;
+  S.email = session.user.email;
+  S.name = session.user.user_metadata?.name || S.name || "";
+  const invite = LS.get("cad-invite");
+  if (invite){ LS.set("cad-invite",""); return onboard(invite); }
+  let saved = LS.get("cad-room");
+  if (!saved){ // retrouver le dernier salon de ce compte (nouvel appareil)
+    const { data } = await sb.from("members").select("joined_at, rooms(code)").eq("user_id", S.me).order("joined_at", { ascending:false }).limit(1);
+    saved = data?.[0]?.rooms?.code || "";
+  }
+  if (saved && S.name) return enterRoom(saved);
+  onboard(saved || null);
+}
+
+// ================== Compte ==================
+// le lien de confirmation garde le code d'invitation, même s'il est ouvert dans un autre navigateur
+const redirectHome = () => { const c = LS.get("cad-invite"); return c ? `${HOME}?salon=${c}` : HOME; };
+const PASS_OK = p => p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p);
+function authMessage(err){
+  const m = (err && err.message) || String(err);
+  if (/Invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect.";
+  if (/Email not confirmed/i.test(m)) return "Ton e-mail n'est pas encore confirmé. Clique sur le lien reçu, ou renvoie-le.";
+  if (/already registered|already been registered/i.test(m)) return "Un compte existe déjà avec cet e-mail. Connecte-toi.";
+  if (/rate limit|too many/i.test(m)) return "Trop de tentatives ou d'e-mails envoyés. Réessaie dans un moment.";
+  if (/Password should|weak password/i.test(m)) return "Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres.";
+  if (/valid email|invalid format/i.test(m)) return "Cette adresse e-mail n'est pas valide.";
+  if (/not authorized/i.test(m)) return "L'envoi d'e-mails n'est pas encore configuré pour cette adresse (voir les réglages SMTP de Supabase).";
+  return m;
+}
+let authMode = "signup";
+function setAuthMode(mode){
+  authMode = mode;
+  $("modeSignup").setAttribute("aria-selected", mode==="signup"); $("modeLogin").setAttribute("aria-selected", mode==="login");
+  $("signupOnly").hidden = mode !== "signup"; $("forgotBtn").hidden = mode !== "login";
+  $("authSubmit").textContent = mode === "signup" ? "Créer mon compte" : "Se connecter";
+  $("authPass").autocomplete = mode === "signup" ? "new-password" : "current-password";
+}
+function showAuth(mode){
+  $("view-auth").hidden = false; $("authForm").hidden = false; $("checkMail").hidden = true;
+  $("authName").value = S.name; setAuthMode(mode);
+}
+function showCheckMail(email){
+  $("authForm").hidden = true; $("checkMail").hidden = false; $("checkMailTo").textContent = email;
+}
+$("modeSignup").onclick = () => setAuthMode("signup");
+$("modeLogin").onclick = () => setAuthMode("login");
+$("authForm").onsubmit = async e => {
+  e.preventDefault(); showNotice("");
+  const email = $("authEmail").value.trim(), password = $("authPass").value, name = $("authName").value.trim();
+  if (!email){ showNotice("Indique ton e-mail."); return; }
+  const btn = $("authSubmit"); btn.disabled = true;
+  try{
+    if (authMode === "signup"){
+      if (!name){ showNotice("Indique ton prénom."); return; }
+      if (!PASS_OK(password)){ showNotice("Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres."); return; }
+      const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name }, emailRedirectTo: redirectHome() } });
+      if (error) throw error;
+      S.name = name; LS.set("cad-name", name);
+      if (data.session) return afterLogin(data.session);
+      if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length){ setAuthMode("login"); showNotice("Un compte existe déjà avec cet e-mail. Connecte-toi."); return; }
+      showCheckMail(email);
+    } else {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error){ if (/Email not confirmed/i.test(error.message)) showCheckMail(email); throw error; }
+      await afterLogin(data.session);
+    }
+  } catch(err){ showNotice(authMessage(err)); }
+  finally { btn.disabled = false; }
+};
+$("resendBtn").onclick = async () => {
+  const { error } = await sb.auth.resend({ type:"signup", email:$("checkMailTo").textContent, options:{ emailRedirectTo: redirectHome() } });
+  showNotice(error ? authMessage(error) : "E-mail renvoyé.");
+};
+$("backToLogin").onclick = () => { showAuth("login"); };
+$("forgotBtn").onclick = async () => {
+  const email = $("authEmail").value.trim();
+  if (!email){ showNotice("Indique d'abord ton e-mail, puis clique sur « Mot de passe oublié ? »."); $("authEmail").focus(); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: HOME });
+  showNotice(error ? authMessage(error) : "Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d'être envoyé.");
+};
+function showReset(){ $("view-reset").hidden = false; $("view-auth").hidden = true; }
+$("resetForm").onsubmit = async e => {
+  e.preventDefault();
+  const password = $("resetPass").value;
+  if (!PASS_OK(password)){ showNotice("Mot de passe trop faible : 10 caractères minimum, avec des lettres et des chiffres."); return; }
+  const { data, error } = await sb.auth.updateUser({ password });
+  if (error){ showNotice(authMessage(error)); return; }
+  showNotice("Mot de passe modifié.");
+  const { data:{ session } } = await sb.auth.getSession();
+  await afterLogin(session);
+};
+$("logoutBtn").onclick = async () => {
+  await sb.auth.signOut();
+  LS.set("cad-room",""); location.href = HOME;
+};
 
 function onboard(code){
   $("view-onboard").hidden = false;
   $("nameInput").value = S.name;
   $("joinBlock").hidden = !code; $("createBlock").hidden = !!code;
   if (code) $("joinCodeLabel").textContent = code;
-  const name = () => { const v=$("nameInput").value.trim(); if(!v){ $("nameInput").focus(); return null; } S.name=v; LS.set("cad-name", v); return v; };
+  const name = () => { const v=$("nameInput").value.trim(); if(!v){ $("nameInput").focus(); return null; }
+    if (v !== S.name) sb.auth.updateUser({ data:{ name:v } }).catch(()=>{});
+    S.name=v; LS.set("cad-name", v); return v; };
   $("onboardForm").onsubmit = async e => {
     e.preventDefault(); if (!name()) return;
     const btn = code ? $("joinBtn") : $("createBtn"); btn.disabled = true;
@@ -113,7 +212,7 @@ async function enterRoom(code, justCreated = false){
   }
   if (!roomId){ LS.set("cad-room",""); showNotice("Ce salon n'existe pas. Vérifie le code ou crée un nouveau salon."); onboard(null); return; }
   S.roomId = roomId; S.roomCode = code; LS.set("cad-room", code);
-  history.replaceState(null, "", "#"+code);
+
   showNotice("");
   $("view-onboard").hidden = true; $("tabs").hidden = false; setTab("swipe");
 
@@ -424,7 +523,8 @@ function celebrate(id, kind){
 
 // ================== Partage ==================
 function openShare(){
-  const link = `${location.origin}${location.pathname}#${S.roomCode}`;
+  const link = `${HOME}?salon=${S.roomCode}`;
+  $("accountEmail").textContent = S.email || "";
   $("shareCode").textContent = S.roomCode; $("shareLink").value = link;
   $("shareSheet").hidden = false;
   if (navigator.share) $("copyLink").textContent = "Partager le lien";
@@ -456,6 +556,6 @@ document.addEventListener("keydown", e => {
   else if (e.key === "ArrowDown"){ e.preventDefault(); act("skip"); }
   else if (e.key === "Backspace") undo();
 });
-window.addEventListener("hashchange", () => { const c = location.hash.replace("#","").toUpperCase(); if (c && c !== S.roomCode) location.reload(); });
+
 
 boot().catch(reportError);

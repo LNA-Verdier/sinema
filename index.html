@@ -28,6 +28,46 @@
 
   <div class="notice" id="notice" hidden></div>
 
+  <!-- Connexion / création de compte -->
+  <section id="view-auth" class="onboard" hidden>
+    <h1>Choisissez votre film<br>sans débat</h1>
+    <p class="lead">Chacun swipe de son côté. Quand vous avez tous les deux envie du même film, il rejoint votre liste.</p>
+    <form id="authForm" class="sheet" novalidate>
+      <div class="seg" role="tablist">
+        <button type="button" role="tab" id="modeSignup" aria-selected="true">Créer un compte</button>
+        <button type="button" role="tab" id="modeLogin" aria-selected="false">Se connecter</button>
+      </div>
+      <div id="signupOnly">
+        <label for="authName">Ton prénom</label>
+        <input id="authName" maxlength="24" placeholder="Ton prénom" autocomplete="given-name">
+      </div>
+      <label for="authEmail">E-mail</label>
+      <input id="authEmail" type="email" placeholder="toi@exemple.fr" autocomplete="email" required>
+      <label for="authPass">Mot de passe</label>
+      <input id="authPass" type="password" minlength="10" placeholder="10 car. min, lettres et chiffres" autocomplete="new-password" required>
+      <button class="cta" type="submit" id="authSubmit">Créer mon compte</button>
+      <button class="linkbtn" type="button" id="forgotBtn" hidden>Mot de passe oublié ?</button>
+    </form>
+    <div class="sheet" id="checkMail" hidden>
+      <h3>Vérifie tes e-mails</h3>
+      <p>On t'a envoyé un lien de confirmation à <b id="checkMailTo"></b>. Clique dessus pour activer ton compte, tu reviendras automatiquement ici. Pense à regarder dans les indésirables.</p>
+      <div class="row-inline">
+        <button class="ghost" type="button" id="resendBtn">Renvoyer l'e-mail</button>
+        <button class="ghost" type="button" id="backToLogin">J'ai confirmé, me connecter</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Nouveau mot de passe (après le lien « mot de passe oublié ») -->
+  <section id="view-reset" class="onboard" hidden>
+    <form id="resetForm" class="sheet">
+      <h3>Nouveau mot de passe</h3>
+      <label for="resetPass">Choisis un nouveau mot de passe</label>
+      <input id="resetPass" type="password" minlength="10" placeholder="10 car. min, lettres et chiffres" autocomplete="new-password" required>
+      <button class="cta" type="submit">Enregistrer</button>
+    </form>
+  </section>
+
   <!-- Accueil : prénom + créer / rejoindre un salon -->
   <section id="view-onboard" class="onboard" hidden>
     <h1>Choisissez votre film<br>sans débat</h1>
@@ -58,7 +98,7 @@
       <div class="people" id="people"></div>
       <div class="filters">
         <select id="genre" aria-label="Filtrer par genre"><option value="">Tous les genres</option></select>
-        <button class="ghost small" id="shareBtn" type="button">Inviter</button>
+        <button class="ghost small" id="shareBtn" type="button">Salon</button>
       </div>
     </div>
     <div class="stage" id="stage"></div>
@@ -88,13 +128,14 @@
 <div class="overlay" id="shareSheet" hidden>
   <div class="sheet">
     <h3>Invite ta moitié</h3>
-    <p>Envoie-lui ce lien. Elle choisit son prénom et vous swipez dans le même salon.</p>
+    <p>Envoie-lui ce lien. Elle crée son compte et arrive directement dans votre salon.</p>
     <div class="code" id="shareCode"></div>
     <input id="shareLink" readonly>
     <div class="row-inline">
       <button class="cta" type="button" id="copyLink">Copier le lien</button>
       <button class="ghost" type="button" id="closeShare">Fermer</button>
     </div>
+    <p class="account">Connecté en tant que <b id="accountEmail"></b>. <button class="linkbtn" type="button" id="logoutBtn">Se déconnecter</button></p>
   </div>
 </div>
 
