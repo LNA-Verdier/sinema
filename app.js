@@ -22,7 +22,12 @@ function reportError(err){
   console.error(err);
   showNotice("Oups, une erreur est survenue : « "+((err && err.message) || err)+" ». Recharge la page, et si ça persiste envoie ce message à Claude.");
 }
-window.addEventListener("error", e => reportError(e.error || e.message));
+// « Script error. » sans détail vient d'un script externe à la page (extension, bloqueur, navigateur intégré) :
+// on le journalise sans l'afficher, il ne concerne pas Sinema.
+window.addEventListener("error", e => {
+  if (!e.error && /^Script error\.?$/i.test(e.message || "")){ console.warn("Erreur externe ignorée", e); return; }
+  reportError(e.error || e.message);
+});
 window.addEventListener("unhandledrejection", e => reportError(e.reason));
 
 // ---------- Barres de choix avec curseur animé ----------
@@ -263,12 +268,18 @@ function onboard(code){
   $("onboardTitle").textContent = code ? "On t'attend !" : "Crée ton premier salon";
   $("onboardLead").hidden = !!code;
   if (code) $("joinCodeLabel").textContent = code;
-  $("joinInviteBtn").onclick = () => joinRoom(code);
+  $("joinInviteBtn").onclick = () => guarded($("joinInviteBtn"), () => joinRoom(code));
 }
-$("firstCreateBtn").onclick = () => createRoom($("newRoomName").value);
-$("joinCodeBtn").onclick = () => joinRoom($("codeInput").value);
-$("menuCreateBtn").onclick = () => createRoom($("menuRoomName").value);
-$("menuJoinBtn").onclick = () => joinRoom($("menuCode").value);
+async function guarded(btn, fn){
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try{ await fn(); }catch(err){ reportError(err); }
+  finally{ btn.disabled = false; }
+}
+$("firstCreateBtn").onclick = () => guarded($("firstCreateBtn"), () => createRoom($("newRoomName").value));
+$("joinCodeBtn").onclick = () => guarded($("joinCodeBtn"), () => joinRoom($("codeInput").value));
+$("menuCreateBtn").onclick = () => guarded($("menuCreateBtn"), () => createRoom($("menuRoomName").value));
+$("menuJoinBtn").onclick = () => guarded($("menuJoinBtn"), () => joinRoom($("menuCode").value));
 
 async function createRoom(roomName){
   showNotice("");
@@ -278,9 +289,8 @@ async function createRoom(roomName){
     return reportError(error);
   }
   sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
-  await loadRooms();
   closeSheets();
-  await openRoom(S.rooms.find(r => r.code === code), { justCreated:true });
+  await openRoom(await findRoom(r => r.code === code), { justCreated:true });
 }
 
 async function joinRoom(raw){
@@ -295,9 +305,19 @@ async function joinRoom(raw){
   }
   if (!roomId) return showNotice("Ce salon n'existe pas. Vérifie le code.");
   await sb.rpc("set_profile", { p_name:S.name, p_avatar:S.avatar }).then(() => {}, () => {});
-  await loadRooms();
   closeSheets();
-  await openRoom(S.rooms.find(r => r.id === roomId), { justJoined:true });
+  await openRoom(await findRoom(r => r.id === roomId, { id:roomId, code, name:null }), { justJoined:true });
+}
+
+// Retrouve un salon tout juste créé ou rejoint, même si la liste met un instant à le refléter.
+async function findRoom(pred, fallback){
+  for (let i = 0; i < 3; i++){
+    try{ await loadRooms(); }catch(err){ console.warn(err); }
+    const r = S.rooms.find(pred); if (r) return r;
+    await new Promise(res => setTimeout(res, 400 * (i + 1)));
+  }
+  if (fallback){ S.rooms.push(fallback); return fallback; }
+  return null;
 }
 
 async function openRoom(room, { justCreated=false, justJoined=false } = {}){
